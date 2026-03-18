@@ -1,0 +1,6 @@
+Flask>=3.0.0
+cryptography>=42.0.0
+pytest>=7.0.0
+# liboqs-python for post-quantum (ML-KEM, ML-DSA)
+# requires CMake + C compiler; uncomment when implementing Chunk 2 & 6
+# liboqs-python>=0.10.0
