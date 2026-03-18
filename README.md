@@ -28,7 +28,7 @@ git checkout -b feature/martin-kem
 git status
 
 # Přidat konkrétní soubor
-git add src/kem.py
+git add src/crypto/kem_pq.py
 
 # Nebo přidat vše najednou
 git add .
@@ -96,9 +96,12 @@ Webová aplikace demonstrující postkvantovou kryptografii jako peer-to-peer ko
 ## Struktura repozitáře
 
 ```
-mpc-kry-skupina5/
+fekt-kry-project-group-5/
 ├── README.md
+├── codestyle.md            # krátký průvodce stylem kódu (EN)
+├── config.py               # sdílená konfigurace
 ├── requirements.txt
+├── assignment-and-research.txt   # zadání + plán chunků
 ├── src/
 │   ├── alice/              # Instance Alice (port 5001)
 │   │   ├── app.py
@@ -106,19 +109,25 @@ mpc-kry-skupina5/
 │   ├── bob/                # Instance Bob (port 5002)
 │   │   ├── app.py
 │   │   └── templates/
-│   ├── crypto/
-│   │   ├── kem.py          # ML-KEM + ECDH
-│   │   ├── signatures.py   # ML-DSA + ECDSA
-│   │   ├── symmetric.py    # AES-GCM + ChaCha20
-│   │   └── handshake.py    # Handshake protokol
+│   ├── crypto/             # moduly k implementaci (Chunks 2–9)
+│   │   ├── kem_pq.py       # Chunk 2: ML-KEM-768
+│   │   ├── kem_classical.py # Chunk 3: ECDH
+│   │   ├── symmetric.py    # Chunks 4–5: AES-GCM, ChaCha20
+│   │   ├── signatures_pq.py    # Chunk 6: ML-DSA-65
+│   │   ├── signatures_classical.py # Chunk 7: ECDSA
+│   │   ├── handshake.py    # Chunk 8: handshake protokol
+│   │   └── transfer.py     # Chunk 9: šifrovaný přenos
+│   ├── static/             # sdílené CSS/JS
 │   └── utils/
-│       └── logger.py       # Logování událostí
+│       └── logger.py       # Chunk 10: logování (placeholder)
 ├── tests/
-│   └── test_crypto.py
+│   └── (test_*.py)
 └── docs/
     ├── studie.pdf
     └── dokumentace.pdf
 ```
+
+**Rozdělení práce:** viz `assignment-and-research.txt` — Project Plan s Chunks 1–14. Každý chunk lze implementovat samostatně.
 
 ---
 
@@ -220,5 +229,11 @@ Otevři v prohlížeči:
 ```bash
 pytest tests/
 ```
+
+---
+
+## Code style
+
+Krátký průvodce stylem kódu: **`codestyle.md`** (EN). Při implementaci chunku dodržuj pojmenování, komentáře a strukturu popsanou tam.
 
 ---
