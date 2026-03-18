@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MPC-KRY — {{ role_label }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <h1>Post-Quantum Crypto Demo <span class="role-badge role-{{ role }}">{{ role_label }}</span></h1>
+  <p class="subtitle">Port {{ '5001' if role == 'alice' else '5002' }} — P2P secure communication</p>
+
+  <div class="alert alert-info">
+    Crypto modules are stubs. Implement Chunks 2–10 per project plan. UI is ready.
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Algorithm selection</h2>
+      <div class="form-group">
+        <label>KEM (key exchange)</label>
+        <select id="kem">
+          {% for val, label in kem_options %}
+          <option value="{{ val }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Signature</label>
+        <select id="sig">
+          {% for val, label in sig_options %}
+          <option value="{{ val }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Symmetric cipher</label>
+        <select id="symmetric">
+          {% for val, label in sym_options %}
+          <option value="{{ val }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-primary" id="btn-handshake">Initiate handshake</button>
+    </div>
+
+    <div class="panel">
+      <h2>Send message</h2>
+      <div class="form-group">
+        <label>Message</label>
+        <textarea id="message" placeholder="Type a message..."></textarea>
+      </div>
+      <button class="btn btn-primary" id="btn-send">Send message</button>
+    </div>
+
+    <div class="panel messages-panel">
+      <h2>Received messages</h2>
+      <div id="messages">
+        <p class="muted">No messages yet.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Security log</h2>
+      <div class="log-viewer" id="logs"></div>
+      <button class="btn btn-secondary" id="btn-refresh-logs" style="margin-top: 0.5rem;">Refresh</button>
+    </div>
+  </div>
+
+  <script>
+    const role = "{{ role }}";
+
+    async function api(path, options = {}) {
+      const res = await fetch(path, {
+        headers: { "Content-Type": "application/json", ...options.headers },
+        ...options,
+      });
+      return res.json();
+    }
+
+    document.getElementById("btn-handshake").addEventListener("click", async () => {
+      const kem = document.getElementById("kem").value;
+      const sig = document.getElementById("sig").value;
+      const symmetric = document.getElementById("symmetric").value;
+      const result = await api("/api/handshake", {
+        method: "POST",
+        body: JSON.stringify({ kem, sig, symmetric }),
+      });
+      alert(result.ok ? result.message : result.error || "Error");
+      refreshLogs();
+    });
+
+    document.getElementById("btn-send").addEventListener("click", async () => {
+      const message = document.getElementById("message").value;
+      const result = await api("/api/send", {
+        method: "POST",
+        body: JSON.stringify({ message }),
+      });
+      if (result.ok) {
+        alert(result.message || "Sent");
+      } else {
+        alert(result.error || "Error");
+      }
+      refreshLogs();
+    });
+
+    async function refreshLogs() {
+      const data = await api("/api/logs");
+      const el = document.getElementById("logs");
+      el.innerHTML = data.entries.length
+        ? data.entries.map(e => `<div class="log-entry status-${e.result === "OK" ? "ok" : "fail"}">${e.timestamp} | ${e.event} | ${e.algorithm} | ${e.result}</div>`).join("")
+        : "<div class='log-entry'>No entries</div>";
+    }
+
+    document.getElementById("btn-refresh-logs").addEventListener("click", refreshLogs);
+
+    refreshLogs();
+  </script>
+</body>
+</html>
