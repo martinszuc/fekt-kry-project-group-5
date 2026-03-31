@@ -2,7 +2,7 @@
 
 **Předmět:** MPC-KRY 2025/2026 — Kryptografie  
 **Skupina:** 5  
-**Členové:** Martin Szüč (231284), Zakhar Vasiukov (243203), Pavlo Balan (241004), Branislav Kadlec (241045)
+**Členové:** Martin Szüč (231284), Zakhar Vasiukov (253203), Pavlo Balan (241004), Branislav Kadlec (241045)
 
 ---
 
