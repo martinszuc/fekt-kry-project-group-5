@@ -5,18 +5,44 @@ Flask app with UI and API stubs for crypto operations.
 
 import sys
 import os
+import json
+import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from flask import Flask, render_template, request, jsonify
 from config import ALICE_PORT, KEM_OPTIONS, SIGNATURE_OPTIONS, SYMMETRIC_OPTIONS, BOB_URL
 from src.utils.logger import log_event, get_log_entries
+from src.crypto.handshake import alice_client_hello, alice_finish
+from src.crypto.transfer import send_message, receive_message
 
 app = Flask(__name__, template_folder="templates", static_folder="../static")
 app.config["ROLE"] = "alice"
 app.config["PEER_URL"] = BOB_URL
 
-SESSION = {"established": False, "kem": None, "sig": None, "symmetric": None}
+SESSION = {
+    "established": False,
+    "kem": None,
+    "sig": None,
+    "symmetric": None,
+    "session_key": None,
+    "my_sig_priv": None,
+    "my_sig_pub": None,
+    "peer_sig_pub": None,
+    "messages": [],
+}
+
+
+def _post_json(url: str, path: str, payload: dict) -> dict:
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url=f"{url}{path}",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 
 @app.route("/")
@@ -51,18 +77,57 @@ def handshake():
     sig = data.get("sig", "mldsa")
     symmetric = data.get("symmetric", "aes_gcm")
 
-    # placeholder until Chunk 8 — just mark session as "attempted" for demo
-    SESSION["kem"] = kem
-    SESSION["sig"] = sig
-    SESSION["symmetric"] = symmetric
-    SESSION["established"] = False  # real handshake will set True
+    # Option 1: implement classical handshake only (ECDH + ECDSA)
+    if kem != "ecdh" or sig != "ecdsa":
+        return jsonify(
+            {
+                "ok": False,
+                "error": "Option 1 implemented: choose KEM=ECDH and Signature=ECDSA.",
+            }
+        ), 400
+    if symmetric not in ("aes_gcm", "chacha20"):
+        return jsonify({"ok": False, "error": "Unsupported symmetric algorithm"}), 400
 
-    log_event("handshake_init", algorithm=f"{kem}+{sig}", result="PENDING")
-    return jsonify({
-        "ok": True,
-        "message": "Handshake initiated (crypto not yet implemented)",
-        "session_established": False,
-    })
+    try:
+        a_state, hello = alice_client_hello(kem_algo=kem, sig_algo=sig, symmetric_algo=symmetric)
+        log_event("handshake_init", algorithm=f"{kem}+{sig}", result="OK")
+        server_hello = _post_json(app.config["PEER_URL"], "/api/handshake", hello)
+        if not server_hello.get("ok", True) and server_hello.get("error"):
+            raise ValueError(server_hello["error"])
+
+        (
+            session_key,
+            alice_sig_pub,
+            alice_sig_priv,
+            bob_sig_pub,
+            finish_msg,
+        ) = alice_finish(a_state, server_hello)
+
+        finish_resp = _post_json(app.config["PEER_URL"], "/api/handshake", finish_msg)
+        if finish_resp.get("ok") is False:
+            raise ValueError(finish_resp.get("error", "finish failed"))
+
+        SESSION["kem"] = kem
+        SESSION["sig"] = sig
+        SESSION["symmetric"] = symmetric
+        SESSION["session_key"] = session_key
+        SESSION["my_sig_priv"] = alice_sig_priv
+        SESSION["my_sig_pub"] = alice_sig_pub
+        SESSION["peer_sig_pub"] = bob_sig_pub
+        SESSION["established"] = True
+
+        log_event("handshake_complete", algorithm=f"{kem}+{sig}+{symmetric}", result="OK")
+        return jsonify(
+            {
+                "ok": True,
+                "message": "Handshake complete. Secure session established.",
+                "session_established": True,
+            }
+        )
+    except Exception as e:
+        SESSION["established"] = False
+        log_event("handshake_failed", algorithm=f"{kem}+{sig}", result="FAIL")
+        return jsonify({"ok": False, "error": str(e)}), 400
 
 
 @app.route("/api/send", methods=["POST"])
@@ -73,15 +138,45 @@ def send():
     if not SESSION["established"]:
         return jsonify({"ok": False, "error": "No active session. Initiate handshake first."}), 400
 
-    # placeholder until Chunk 9
-    log_event("message_sent", data_size=len(message), result="PENDING")
-    return jsonify({"ok": True, "message": "Send not implemented yet"})
+    try:
+        payload = send_message(
+            SESSION["session_key"],
+            SESSION["my_sig_priv"],
+            message,
+            SESSION["symmetric"],
+        )
+        resp = _post_json(app.config["PEER_URL"], "/api/incoming", payload)
+        if resp.get("ok") is not True:
+            raise ValueError(resp.get("error", "peer rejected message"))
+
+        SESSION["messages"].append({"from": "me", "text": str(message)})
+        log_event("message_sent", algorithm=f"{SESSION['symmetric']}+{SESSION['sig']}", data_size=len(message), result="OK")
+        return jsonify({"ok": True, "message": "Message sent securely."})
+    except Exception as e:
+        log_event("message_send_failed", algorithm=f"{SESSION.get('symmetric')}+{SESSION.get('sig')}", result="FAIL")
+        return jsonify({"ok": False, "error": str(e)}), 400
 
 
 @app.route("/api/receive")
 def receive():
-    # placeholder until Chunk 9
-    return jsonify({"messages": []})
+    return jsonify({"messages": list(reversed(SESSION["messages"]))})
+
+
+@app.route("/api/incoming", methods=["POST"])
+def incoming():
+    if not SESSION["established"]:
+        return jsonify({"ok": False, "error": "No active session"}), 400
+
+    payload = request.get_json() or {}
+    try:
+        pt = receive_message(SESSION["session_key"], SESSION["peer_sig_pub"], payload)
+        text = pt.decode("utf-8", errors="replace")
+        SESSION["messages"].append({"from": "peer", "text": text})
+        log_event("message_received", algorithm=f"{SESSION['symmetric']}+{SESSION['sig']}", data_size=len(pt), result="OK")
+        return jsonify({"ok": True})
+    except Exception as e:
+        log_event("message_receive_failed", algorithm=f"{SESSION.get('symmetric')}+{SESSION.get('sig')}", result="FAIL")
+        return jsonify({"ok": False, "error": str(e)}), 400
 
 
 @app.route("/api/logs")

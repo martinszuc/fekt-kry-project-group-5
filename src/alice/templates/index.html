@@ -78,6 +78,20 @@
       return res.json();
     }
 
+    async function refreshMessages() {
+      const data = await api("/api/receive");
+      const el = document.getElementById("messages");
+      if (!data.messages || !data.messages.length) {
+        el.innerHTML = `<p class="muted">No messages yet.</p>`;
+        return;
+      }
+      el.innerHTML = data.messages.map(m => {
+        const cls = m.from === "me" ? "from-me" : "from-peer";
+        const label = m.from === "me" ? "Me" : "Peer";
+        return `<div class="message ${cls}"><strong>${label}:</strong> ${m.text}</div>`;
+      }).join("");
+    }
+
     document.getElementById("btn-handshake").addEventListener("click", async () => {
       const kem = document.getElementById("kem").value;
       const sig = document.getElementById("sig").value;
@@ -88,6 +102,7 @@
       });
       alert(result.ok ? result.message : result.error || "Error");
       refreshLogs();
+      refreshMessages();
     });
 
     document.getElementById("btn-send").addEventListener("click", async () => {
@@ -102,6 +117,7 @@
         alert(result.error || "Error");
       }
       refreshLogs();
+      refreshMessages();
     });
 
     async function refreshLogs() {
@@ -115,6 +131,7 @@
     document.getElementById("btn-refresh-logs").addEventListener("click", refreshLogs);
 
     refreshLogs();
+    refreshMessages();
   </script>
 </body>
 </html>
