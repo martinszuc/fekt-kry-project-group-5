@@ -1,0 +1,747 @@
+﻿📃 Zadanie
+Zabezpečení dat pomocí algoritmů postkvantové kryptografie
+Nastudujte principy postkvantové kryptografie, zejména algoritmy pro ustanovení sdíleného tajného klíče (KEM – Key Encapsulation Mechanism) a algoritmy pro digitální podpis odolné vůči kvantovým útokům. Seznamte se s aktuálním stavem standardizace NIST Post-Quantum Cryptography a porovnejte postkvantové algoritmy s klasickými asymetrickými algoritmy (RSA, ECC).
+
+
+Následně navrhněte a implementujte peer-to-peer aplikaci umožňující:
+
+
+* ustanovení sdíleného tajného klíče pomocí postkvantového algoritmu,
+* důvěrný přenos dat pomocí symetrické kryptografie,
+* digitální podpis a ověření dat pomocí postkvantového podpisového algoritmu.
+
+
+Aplikace musí implementovat vlastní komunikační protokol (handshake), jehož struktura bude popsána v dokumentaci.
+
+
+Projekt by měl zahrnovat:
+
+
+* realizaci alespoň dvou algoritmů pro ustanovení klíče (minimálně jeden postkvantový),
+* realizaci alespoň dvou symetrických algoritmů pro šifrování přenášených dat,
+* realizaci alespoň dvou algoritmů pro digitální podpis (minimálně jeden postkvantový),
+* návrh a implementaci handshake protokolu pro bezpečné navázání spojení,
+* logování bezpečnostních událostí (čas, použitý algoritmus, velikost přenesených dat, bezpečnostní úroveň),
+* zabezpečené ukládání klíčů a logů (např. šifrování nebo ochrana integrity).
+
+
+Součástí řešení musí být:
+
+
+* porovnání klasických a postkvantových algoritmů z hlediska: velikosti klíčů, velikosti podpisu, výkonnosti, přenosové režie,
+* vyhodnocení bezpečnostní úrovně dle aktuálních doporučení (např. NIST úroveň 1–5),
+* stručná analýza omezení postkvantových algoritmů (paměťová náročnost, velikost přenosu, praktická implementovatelnost).
+
+
+V tomto zadání je možné použít existující knihovny implementující postkvantové algoritmy. Není dovoleno použít hotové bezpečné komunikační protokoly (např. TLS knihovny), které by obcházely vlastní návrh.
+
+
+Preferována je implementace skutečné síťové komunikace (např. pomocí socketů). Alternativně lze implementovat simulovanou komunikaci mezi dvěma instancemi aplikace, pokud jsou omezení zdůvodněna v dokumentaci.
+Literatura
+[1] ALAGIC, Gorjan, et al. Status report on the first round of the NIST post-quantum cryptography standardization process. Washington, DC: US Department of Commerce, National Institute of Standards and Technology, 2019.
+
+
+[2] BERNSTEIN, Daniel J.; LANGE, Tanja. Post-quantum cryptography. Nature, 2017, 549.7671: 188-194.
+
+
+📚 Studie
+Studie problematiky
+Zabezpečení dat pomocí algoritmů postkvantové kryptografie
+
+
+Předmět: MPC-KRY 2025/2026
+Skupina: 5
+Autoři:
+
+
+* Martin Szüč (231284)
+* Zakhar Vasiukov (243203)
+* Pavlo Balan (241004)
+* Branislav Kadlec (241045)
+
+
+Datum: 
+
+
+Obsah
+1. Úvod
+2. Cíle projektu
+3. Teoretická část
+3.1 Hrozba kvantových počítačů pro kryptografii
+3.2 Shorův algoritmus
+3.3 NIST Post-Quantum Cryptography standardizace
+KEM (ustanovení klíče)
+Digitální podpisy
+3.4 Mechanismy zapouzdření klíče (KEM)
+3.5 Postkvantové digitální podpisy
+Mřížkové podpisy
+Hash-based podpisy
+Multivariátní a kódové systémy
+3.6 Srovnání klasických a postkvantových algoritmů
+4. Popis projektu
+Architektura aplikace
+Použité technologie
+Návrh handshake protokolu
+5. Aktuální stav řešení
+Čeho bylo dosaženo
+Návrh dalšího postupu
+6. Záver
+Literatura
+
+
+
+
+1. Úvod
+Rozvoj kvantových počítačů představuje zásadní hrozbu pro bezpečnost současných kryptografických systémů. Algoritmy jako RSA nebo kryptografie nad eliptickými křivkami (ECC), na nichž stojí většina dnešní bezpečné komunikace, jsou zranitelné vůči kvantovým útokům — konkrétně vůči Shorovu algoritmu. Cílem tohoto projektu je navrhnout a implementovat aplikaci, která demonstruje využití postkvantových kryptografických algoritmů standardizovaných institutem NIST jako náhradu za klasické asymetrické schéma.
+
+
+2. Cíle projektu
+Cílem projektu je navrhnout a implementovat peer-to-peer aplikaci s webovým rozhraním, která zajišťuje:
+
+
+* Ustanovení sdíleného tajného klíče pomocí postkvantového algoritmu ML-KEM (Kyber) a klasického ECDH
+* Důvěrný přenos dat pomocí symetrického šifrování (AES-256-GCM a ChaCha20-Poly1305)
+* Digitální podpis a ověření dat pomocí postkvantového algoritmu ML-DSA (Dilithium) a klasického ECDSA
+* Vlastní handshake protokol pro navázání zabezpečeného spojení
+* Logování bezpečnostních událostí s ochranou integrity logů
+* Srovnání klasických a postkvantových algoritmů z hlediska výkonu, velikosti klíčů a přenosové režie
+
+
+
+
+3. Teoretická část
+3.1 Hrozba kvantových počítačů pro kryptografii
+Současná moderní kryptografie je z velké části založena na matematických problémech, které jsou pro klasické počítače výpočetně obtížné. Mezi nejvýznamnější patří faktorizace velkých čísel (využívaná v RSA) a problém diskrétního logaritmu (využívaný v ECC a Diffie-Hellmanově výměně klíčů).
+S příchodem kvantových počítačů však dochází k zásadní změně. Kvantové algoritmy dokáží některé z těchto problémů řešit exponenciálně rychleji než klasické algoritmy. To znamená, že kryptosystémy, které jsou dnes považovány za bezpečné, by mohly být v budoucnu prolomeny.
+Hlavní hrozby:
+* rozbití asymetrické kryptografie (RSA, ECC),
+* kompromitace výměny klíčů,
+* ohrožení digitálních podpisů.
+Symetrická kryptografie (např. AES) je kvantovými počítači ovlivněna méně výrazně, protože kvantový Groverův algoritmus pouze snižuje efektivní bezpečnost na polovinu (např. AES-128 → ~64bitová bezpečnost). Tento problém lze řešit použitím delších klíčů (např. AES-256).
+3.2 Shorův algoritmus
+Shorův algoritmus je kvantový algoritmus, který byl navržen pro efektivní řešení dvou klíčových problémů:
+* faktorizace velkých celých čísel,
+* výpočet diskrétního logaritmu.
+Na klasickém počítači jsou tyto problémy považovány za výpočetně neřešitelné v rozumném čase pro dostatečně velké vstupy. Shorův algoritmus však dokáže tyto problémy řešit v polynomiálním čase.
+Důsledky:
+* RSA (založené na faktorizaci) je zranitelné,
+* Diffie-Hellman a ECC (založené na diskrétním logaritmu) jsou zranitelné,
+* většina dnešní veřejnoklíčové kryptografie by byla nebezpečná.
+Praktická realizace Shorova algoritmu zatím vyžaduje velké, stabilní kvantové počítače, které ještě nejsou běžně dostupné. Nicméně vývoj v této oblasti postupuje a existuje reálné riziko, že v horizontu několika desetiletí bude tato hrozba aktuální. [2]
+3.3 NIST Post-Quantum Cryptography standardizace
+Aby se předešlo hrozbám kvantových počítačů, zahájil National Institute of Standards and Technology (NIST) proces standardizace postkvantových kryptografických algoritmů. [1]
+Cíle standardizace:
+* vybrat algoritmy odolné vůči kvantovým útokům,
+* zajistit jejich praktickou implementovatelnost,
+* definovat bezpečnostní úrovně (Level 1–5, analogie k AES).
+Výsledky (stav kolem roku 2024–2025):
+KEM (ustanovení klíče)
+* CRYSTALS-Kyber (standardizován jako ML-KEM)
+Digitální podpisy
+* CRYSTALS-Dilithium (ML-DSA)
+* Falcon
+* SPHINCS+
+Bezpečnostní úrovně:
+* Level 1 ≈ AES-128
+* Level 3 ≈ AES-192
+* Level 5 ≈ AES-256
+NIST klade důraz nejen na bezpečnost, ale i na:
+* velikost klíčů,
+* rychlost,
+* odolnost proti implementačním útokům.
+3.4 Mechanismy zapouzdření klíče (KEM)
+KEM (Key Encapsulation Mechanism) je kryptografický mechanismus sloužící k bezpečnému ustanovení sdíleného tajného klíče mezi dvěma stranami.
+Základní princip:
+1. Příjemce vygeneruje pár klíčů (veřejný a soukromý).
+2. Odesílatel pomocí veřejného klíče vytvoří:
+   * zapouzdřený klíč (ciphertext),
+   * sdílené tajemství.
+3. Příjemce pomocí soukromého klíče získá stejné sdílené tajemství.
+Výhody oproti klasickému Diffie-Hellman:
+* jednodušší bezpečnostní model,
+* vhodné pro postkvantové algoritmy.
+Příklady postkvantových KEM:
+* CRYSTALS-Kyber (mřížková kryptografie),
+* NTRU,
+* SABER.
+Tyto algoritmy jsou založeny převážně na problémech z oblasti mřížkové kryptografie (lattice-based cryptography), které jsou považovány za odolné vůči kvantovým útokům. [3]
+3.5 Postkvantové digitální podpisy
+Digitální podpisy slouží k:
+* ověření autenticity,
+* zajištění integrity dat,
+* nepopiratelnosti (non-repudiation).
+Postkvantové podpisové algoritmy jsou navrženy tak, aby odolaly kvantovým útokům. Mezi hlavní přístupy patří:
+Mřížkové podpisy
+* CRYSTALS-Dilithium
+* Falcon
+Výhody:
+* vysoká rychlost,
+* relativně malé podpisy (oproti jiným PQC metodám).
+Hash-based podpisy
+   * SPHINCS+
+Výhody:
+   * velmi vysoká bezpečnost (založená pouze na hash funkcích),
+Nevýhody:
+   * velké podpisy,
+   * nižší výkon.
+Multivariátní a kódové systémy
+      * méně rozšířené, často větší klíče nebo podpisy.
+Ve srovnání s klasickými algoritmy (RSA, ECDSA) mají PQ podpisy:
+      * větší velikosti klíčů a podpisů,
+      * vyšší paměťovou náročnost,
+      * ale výrazně vyšší odolnost vůči kvantovým útokům. 
+3.6 Srovnání klasických a postkvantových algoritmů
+Vlastnost
+	ECDH (P-256)
+	ML-KEM-768
+	ECDSA (P-256)
+	ML-DSA-65
+	Velikost veřejného klíče
+	64 B
+	1 184 B
+	64 B
+	1 952 B
+	Velikost privátního klíče
+	32 B
+	2 400 B
+	32 B
+	4 032 B
+	Velikost podpisu / ciphertextu
+	—
+	1 088 B
+	~72 B
+	3 309 B
+	Bezpečnostní úroveň (NIST)
+	úroveň 3
+	úroveň 3
+	úroveň 3
+	úroveň 3
+	Odolnost vůči kvantovým útokům
+	❌
+	✅
+	❌
+	✅
+	4. Popis projektu
+Projekt je realizován jako webová aplikace v jazyce Python s využitím frameworku Flask. Aplikace simuluje peer-to-peer komunikaci mezi dvěma účastníky (Alice a Bob) jako dvě instance běžící na různých portech téhož stroje. 
+Architektura aplikace
+Alice (port 5001)                    Bob (port 5002)
+       |                                   |
+       |------- handshake request -------->|
+       |         (KEM encapsulate)         |
+       |<------ KEM ciphertext ------------|
+       |         (sdílené tajemství)       |
+       |======= šifrovaný kanál ===========|
+       |------- podepsaná zpráva --------->|
+       |<------ podepsaná zpráva ----------|
+	Použité technologie
+Komponenta
+	Technologie
+	Jazyk
+	Python 3.11+
+	Webový framework
+	Flask
+	Postkvantové algoritmy
+	liboqs-python (Open Quantum Safe)
+	Klasická kryptografie
+	cryptography (PyPI)
+	Symetrické šifrování
+	AES-256-GCM, ChaCha20-Poly1305
+	
+
+Návrh handshake protokolu
+Aby bola zaistená dôvernosť a integrita dát na nezabezpečenom HTTP kanáli, bol navrhnutý vlastný handshake protokol skladajúci sa zo štyroch fáz.
+
+
+Fáza 1: Inicializácia spojenia (Client Hello)
+
+
+Alica odošle Bobovi správu obsahujúcu zoznam podporovaných kryptografických algoritmov (KEM, podpis, symetrické šifrovanie) a svoj verejný KEM kľúč.
+
+
+Fáza 2: Odpoveď a zapuzdrenie kľúča (Server Hello & Key Encapsulation)
+
+
+Bob vyberie konkrétne algoritmy pre danú reláciu a vygeneruje svoj podpisový pár kľúčov. Pomocou Alicinho verejného KEM kľúča zapuzdri (encapsulate) zdieľané tajomstvo a vzniknutý šifrový text spolu so zvolenou konfiguráciou a svojim verejným podpisovým kľúčom digitálne podpíše a odošle Alici.
+
+
+Fáza 3: Overenie a ustanovenie zdieľaného kľúča (Verification & Decapsulation)
+
+
+Alica overí Bobov digitálny podpis. Ak overenie zlyhá, spojenie je okamžite ukončené (potenciálny útok Man-in-the-Middle). V opačnom prípade Alica pomocou svojho súkromného KEM kľúča odpuzdri (decapsulate) šifrový text. Obidve strany teraz vlastnia rovnaký symetrický relačný kľúč (Session Key).
+
+
+Fáza 4: Zabezpečená komunikácia
+
+
+Všetky následné správy sú šifrované dohodnutým symetrickým algoritmom s AEAD (napr. AES-256-GCM) a každá správa je digitálne podpísaná, čím je zaistená dôvernosť, integrita a nepopierateľnosť.
+
+
+
+
+5. Aktuální stav řešení
+Čeho bylo dosaženo
+      * Analýza požadavků projektu a výběr kryptografických algoritmů
+      * Výběr programovacího jazyka (Python) a frameworku (Flask)
+      * Průzkum knihovny liboqs-python a ověření dostupnosti ML-KEM a ML-DSA
+      * Vytvoření repozitáře na platformě GitHub a nastavení struktury projektu
+      * Rozdělení práce mezi členy týmu
+Návrh dalšího postupu
+      * Implementace kryptografických primitiv (ML-KEM, ECDH, ML-DSA, ECDSA)
+      * Implementace symetrického šifrování (AES-256-GCM, ChaCha20-Poly1305)
+      * Realizace handshake protokolu a zabezpečeného přenosu zpráv
+      * Vytvoření webového rozhraní a REST API
+      * Testování, benchmarking a příprava dokumentace
+
+
+6. Záver
+Cieľom tohto projektu je naštudovať princípy postkvantovej kryptografie, porovnať ich s klasickými asymetrickými algoritmami a tieto poznatky aplikovať pri návrhu a implementácii vlastnej bezpečnej peer-to-peer aplikácie.
+
+
+V teoretickej časti štúdie sme zosumarizovali aktuálny stav štandardizácie NIST, pričom sme sa zamerali na mechanizmy KEM a postkvantové digitálne podpisy. Porovnanie ukázalo, že hoci postkvantové algoritmy prinášajú nevyhnutnú odolnosť voči útokom pomocou Shorovho algoritmu, ich implementácia vyžaduje prácu s podstatne väčšími kľúčmi a podpismi, čo má vplyv na sieťový prenos.
+
+
+V rámci praktickej časti bola navrhnutá architektúra aplikácie a vlastný handshake protokol. Implementácia kryptografických modulov a webového rozhrania prebehne v nasledujúcich týždňoch podľa navrhnutého postupu.
+Literatura
+[1] ALAGIC, Gorjan, et al. Status report on the third round of the NIST post-quantum cryptography standardization process. Washington, DC: National Institute of Standards and Technology, 2022. Dostupné z: https://doi.org/10.6028/NIST.IR.8413
+
+
+[2] BERNSTEIN, Daniel J.; LANGE, Tanja. Post-quantum cryptography. Nature, 2017, roč. 549, č. 7671, s. 188–194. ISSN 1476-4687.
+
+
+[3] National Institute of Standards and Technology. FIPS 203: Module-Lattice-Based Key-Encapsulation Mechanism Standard. Gaithersburg: NIST, 2024. Dostupné z: https://doi.org/10.6028/NIST.FIPS.203
+
+
+[4] National Institute of Standards and Technology. FIPS 204: Module-Lattice-Based Digital Signature Standard. Gaithersburg: NIST, 2024. Dostupné z: https://doi.org/10.6028/NIST.FIPS.204
+
+
+
+
+🖋️ Projekt plan
+Project Plan — MPC-KRY Skupina 5
+Zabezpečení dat pomocí algoritmů postkvantové kryptografie
+________________
+
+
+Repository
+🔗 https://github.com/martinszuc/fekt-kry-project-group-5 - useful info in the README :) 
+
+
+________________
+
+
+Git Workflow
+Branch structure
+main                        ← stable, only merge via Pull Request
+└── feature/<name>-<task>   ← each person works here
+	Rules
+      * Never commit directly to main
+      * Always create a feature branch from latest main
+      * Open a Pull Request when your chunk is done — at least one other person reviews it
+      * Write meaningful commit messages (e.g. feat: ML-KEM key generation, fix: handshake timeout, docs: update README)
+      * Pull from main regularly to avoid big merge conflicts
+Daily workflow
+git checkout main && git pull           # get latest
+git checkout -b feature/your-task       # create your branch
+# ... do work ...
+git add . && git commit -m "your message"
+git push -u origin feature/your-task    # push to GitHub
+# Open Pull Request on GitHub → assign reviewer → merge to main
+	
+
+________________
+
+
+How the Application Works — Big Picture
+The app simulates a secure peer-to-peer communication between two parties: Alice and Bob. Both run as separate Flask web server instances on the same machine (different ports). Through a shared web UI, either party can initiate a handshake, choose algorithms, send encrypted and signed messages or files, and view security logs.
+
+
+┌─────────────────────┐          HTTP/REST          ┌─────────────────────┐
+│   Alice -- :5001      │ ◄───────────────────────► │    Bob -- :5002       │
+│                       │                             │                        │
+│  Web UI (Flask)       │       own handshake         │  Web UI (Flask)        │
+│  - choose algo        │ ──── KEM + signatures ───► │  - view messages       │
+│  - send message       │ ◄─── encrypted + signed ─── │  - send message       │
+│  - view logs          │                              │  - view logs          │
+└─────────────────────┘                              └─────────────────────┘
+        │                                                     │
+        └──────────────── shared crypto/utils ────────────────┘
+	
+
+________________
+
+
+Application Modules — Code Chunks
+Below is a breakdown of every piece of code the project needs. Each chunk is independent enough to be picked up individually. Chunks roughly follow the order they need to be done.
+
+
+________________
+
+
+CHUNK 1 — Project Skeleton & Flask Setup
+What it is: Basic scaffold — two Flask apps (alice, bob), shared folder structure, requirements.txt, config.
+
+
+Files:
+
+
+      * src/alice/app.py — Flask app, routes placeholder
+      * src/bob/app.py — Flask app, routes placeholder
+      * src/alice/templates/index.html — basic HTML page
+      * src/bob/templates/index.html — basic HTML page
+      * requirements.txt
+      * config.py — ports, shared constants
+
+
+What it should do when done: Both instances start, open in browser, show a placeholder page. Nothing crypto yet.
+
+
+________________
+
+
+CHUNK 2 — KEM: ML-KEM-768 (Post-Quantum Key Encapsulation)
+What it is: Key generation, encapsulation and decapsulation using ML-KEM-768 (Kyber) via liboqs-python.
+
+
+Files:
+
+
+      * src/crypto/kem_pq.py
+
+
+Functions needed:
+
+
+      * generate_keypair() → (public_key, private_key)
+      * encapsulate(public_key) → (ciphertext, shared_secret)
+      * decapsulate(private_key, ciphertext) → shared_secret
+
+
+What it should do when done: Unit test proves Alice and Bob derive the same shared secret using ML-KEM.
+
+
+________________
+
+
+CHUNK 3 — KEM: ECDH (Classical Key Exchange)
+What it is: Same interface as Chunk 2 but using classical ECDH over P-256 via the cryptography library.
+
+
+Files:
+
+
+      * src/crypto/kem_classical.py
+
+
+Functions needed:
+
+
+      * generate_keypair() → (public_key, private_key)
+      * derive_shared_secret(private_key, peer_public_key) → shared_secret
+
+
+What it should do when done: Unit test proves Alice and Bob derive the same shared secret using ECDH.
+
+
+________________
+
+
+CHUNK 4 — Symmetric Encryption: AES-256-GCM
+What it is: Encrypt and decrypt arbitrary data using AES-256-GCM (authenticated encryption).
+
+
+Files:
+
+
+      * src/crypto/symmetric.py
+
+
+Functions needed:
+
+
+      * encrypt_aes_gcm(key, plaintext) → (ciphertext, nonce, tag)
+      * decrypt_aes_gcm(key, ciphertext, nonce, tag) → plaintext
+
+
+What it should do when done: Unit test encrypts a message and decrypts it back correctly. Tampered ciphertext raises an error.
+
+
+________________
+
+
+CHUNK 5 — Symmetric Encryption: ChaCha20-Poly1305
+What it is: Same interface as Chunk 4 but using ChaCha20-Poly1305.
+
+
+Files:
+
+
+      * src/crypto/symmetric.py (add to same file)
+
+
+Functions needed:
+
+
+      * encrypt_chacha20(key, plaintext) → (ciphertext, nonce)
+      * decrypt_chacha20(key, ciphertext, nonce) → plaintext
+
+
+What it should do when done: Same as Chunk 4 but with ChaCha20.
+
+
+________________
+
+
+CHUNK 6 — Digital Signatures: ML-DSA-65 (Post-Quantum)
+What it is: Key generation, signing and verification using ML-DSA-65 (Dilithium) via liboqs-python.
+
+
+Files:
+
+
+      * src/crypto/signatures_pq.py
+
+
+Functions needed:
+
+
+      * generate_keypair() → (public_key, private_key)
+      * sign(private_key, message) → signature
+      * verify(public_key, message, signature) → True/False
+
+
+What it should do when done: Unit test signs a message and verifies it. Modified message fails verification.
+
+
+________________
+
+
+CHUNK 7 — Digital Signatures: ECDSA (Classical)
+What it is: Same interface as Chunk 6 using classical ECDSA P-256.
+
+
+Files:
+
+
+      * src/crypto/signatures_classical.py
+
+
+Functions needed:
+
+
+      * generate_keypair() → (public_key, private_key)
+      * sign(private_key, message) → signature
+      * verify(public_key, message, signature) → True/False
+
+
+What it should do when done: Same as Chunk 6 but with ECDSA.
+
+
+________________
+
+
+CHUNK 8 — Handshake Protocol
+What it is: The core protocol that connects Alice and Bob. Orchestrates KEM + signatures to establish a secure session.
+
+
+Files:
+
+
+      * src/crypto/handshake.py
+
+
+Protocol steps:
+
+
+1. Alice generates KEM keypair, sends public key to Bob
+
+
+2. Bob encapsulates → sends KEM ciphertext back to Alice
+
+
+3. Alice decapsulates → both now have shared_secret
+
+
+4. shared_secret fed into KDF (HKDF-SHA256) → session_key
+
+
+5. Bob signs his KEM ciphertext with his signing key → Alice verifies
+
+
+6. Alice sends her signing public key to Bob for future message verification
+
+
+7. Handshake complete — session established
+
+
+What it should do when done: After calling perform_handshake(), both Alice and Bob have the same session_key and each other's signing public key. All further messages use this session_key.
+
+
+________________
+
+
+CHUNK 9 — Secure Message/File Transfer
+What it is: Sending and receiving encrypted + signed messages or files using the established session.
+
+
+Files:
+
+
+      * src/crypto/transfer.py
+
+
+Functions needed:
+
+
+      * send_message(session_key, signing_key, message, algo) → encrypted payload
+      * receive_message(session_key, peer_verify_key, payload) → plaintext or error
+
+
+What it should do when done: Alice sends a message, Bob decrypts and verifies the signature. Tampered message raises an error.
+
+
+________________
+
+
+CHUNK 10 — Logger
+What it is: Records security events (handshake start/end, algorithm used, message sent/received, errors). Logs are stored in a file with integrity protection (hash chain or HMAC).
+
+
+Files:
+
+
+      * src/utils/logger.py
+
+
+What it should log: timestamp, event type, algorithm used, data size, result (OK/FAIL)
+
+
+Integrity protection: Each log entry includes an HMAC of (previous_entry + current_entry) so tampering is detectable.
+
+
+What it should do when done: Log file grows with each operation. If a log entry is modified manually, integrity check fails.
+
+
+________________
+
+
+CHUNK 11 — Flask REST API Routes
+What it is: Glues all crypto modules together into HTTP endpoints that the UI calls.
+
+
+Files:
+
+
+      * src/alice/app.py (routes)
+      * src/bob/app.py (routes)
+
+
+Endpoints needed (both instances):
+
+
+      * POST /handshake — initiate or respond to handshake
+      * POST /send — encrypt + sign and send message to peer
+      * GET /receive — get latest received message (decrypted)
+      * GET /logs — return log entries
+      * GET /status — session status, active algorithm, peer info
+
+
+What it should do when done: Curl or browser can call these endpoints and get real crypto responses.
+
+
+________________
+
+
+CHUNK 12 — Web UI
+What it is: Simple HTML/JS frontend for each Flask instance. Lets user pick algorithm, type/upload a message, send it, and see the result + logs.
+
+
+Files:
+
+
+      * src/alice/templates/index.html
+      * src/bob/templates/index.html
+      * src/static/style.css
+      * src/static/main.js
+
+
+UI elements:
+
+
+      * Dropdown: choose KEM algorithm (ML-KEM / ECDH)
+      * Dropdown: choose signature algorithm (ML-DSA / ECDSA)
+      * Dropdown: choose symmetric cipher (AES-GCM / ChaCha20)
+      * Button: Initiate Handshake
+      * Text area: compose message
+      * Button: Send Message
+      * Panel: received messages
+      * Panel: security log viewer
+
+
+What it should do when done: Full end-to-end flow usable from the browser with no command line.
+
+
+________________
+
+
+CHUNK 13 — Benchmark & Comparison
+What it is: Measures and compares performance of classical vs. post-quantum algorithms. Outputs a table/chart for the documentation.
+
+
+Files:
+
+
+      * tests/benchmark.py
+
+
+What to measure:
+
+
+      * Key generation time
+      * Encapsulation / decapsulation time
+      * Sign / verify time
+      * Key sizes and signature sizes (bytes)
+
+
+What it should do when done: Running the script prints a comparison table. Output goes into the documentation.
+
+
+________________
+
+
+CHUNK 14 — Tests
+What it is: Automated tests for all crypto modules.
+
+
+Files:
+
+
+      * tests/test_kem.py
+      * tests/test_signatures.py
+      * tests/test_symmetric.py
+      * tests/test_handshake.py
+      * tests/test_logger.py
+
+
+What to test:
+
+
+      * Correct key exchange (both parties get same secret)
+      * Signature verify passes for valid, fails for tampered
+      * Decryption fails for tampered ciphertext
+      * Log integrity check detects modification
+
+
+________________
+
+
+Suggested Order of Work
+Chunk 1 (skeleton) → Chunks 2-7 (crypto primitives, parallel) 
+→ Chunk 8 (handshake, needs 2+3) 
+→ Chunk 9 (transfer, needs 4+5+6+7+8) 
+→ Chunk 10 (logger, independent) 
+→ Chunk 11 (API, needs everything) 
+→ Chunk 12 (UI, needs 11) 
+→ Chunks 13+14 (benchmark + tests, at the end)
+
+
+________________
