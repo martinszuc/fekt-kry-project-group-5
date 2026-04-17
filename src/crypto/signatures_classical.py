@@ -54,5 +54,5 @@ def verify(public_key: bytes, message: bytes, signature: bytes) -> bool:
         public_key_obj = load_der_public_key(public_key, backend=default_backend())
         public_key_obj.verify(signature, message, ECDSA(SHA256()))
         return True
-    except (InvalidSignature, Exception):
+    except InvalidSignature:
         return False
