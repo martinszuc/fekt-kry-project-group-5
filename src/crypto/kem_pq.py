@@ -1,6 +1,14 @@
 """
 ML-KEM-768 (Kyber) key encapsulation — Chunk 2.
-Uses liboqs-python when implemented.
+Uses liboqs-python (import oqs).
+
+Quick reference — how the oqs KEM API works:
+
+    import oqs
+    kem = oqs.KeyEncapsulation("ML-KEM-768")
+    public_key = kem.generate_keypair()          # also stores private key inside kem
+    ciphertext, shared_secret = oqs.KeyEncapsulation("ML-KEM-768").encap_secret(public_key)
+    recovered = kem.decap_secret(ciphertext)     # recovered == shared_secret
 """
 
 

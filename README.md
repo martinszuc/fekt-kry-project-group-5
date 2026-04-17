@@ -197,10 +197,29 @@ deactivate
 pip install -r requirements.txt
 ```
 
-> ⚠️ `liboqs-python` vyžaduje aby byl v systému nainstalovaný **CMake** a **C kompilátor**.  
-> - Windows: nainstaluj [CMake](https://cmake.org/download/) + [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)  
-> - macOS: `brew install cmake`  
-> - Linux (Ubuntu/Debian): `sudo apt install cmake gcc`
+> ⚠️ `liboqs-python` vyžaduje aby byl v systému nainstalovaný **CMake**, **C kompilátor** a nativní **liboqs shared library**.
+>
+> **macOS:**
+> ```bash
+> brew install cmake
+> git clone --depth 1 --branch 0.15.0 https://github.com/open-quantum-safe/liboqs.git /tmp/liboqs
+> cmake -S /tmp/liboqs -B /tmp/liboqs/build -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/opt/homebrew
+> cmake --build /tmp/liboqs/build --parallel 4
+> cmake --install /tmp/liboqs/build
+> ```
+>
+> **Linux (Ubuntu/Debian):**
+> ```bash
+> sudo apt install cmake gcc
+> git clone --depth 1 --branch 0.15.0 https://github.com/open-quantum-safe/liboqs.git /tmp/liboqs
+> cmake -S /tmp/liboqs -B /tmp/liboqs/build -DBUILD_SHARED_LIBS=ON
+> cmake --build /tmp/liboqs/build --parallel 4
+> sudo cmake --install /tmp/liboqs/build
+> ```
+>
+> **Windows:** nainstaluj [CMake](https://cmake.org/download/) + [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/), pak stejný postup výše v PowerShellu.
+>
+> Po instalaci nativní knihovny funguje `pip install -r requirements.txt` standardně.
 
 ---
 
