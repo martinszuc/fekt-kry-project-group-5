@@ -39,6 +39,7 @@ def derive_shared_secret(private_key: bytes, peer_public_key: bytes) -> bytes:
     try:
         private_key_obj = load_der_private_key(private_key, password=None, backend=default_backend())
         peer_key_obj = load_der_public_key(peer_public_key, backend=default_backend())
+        # TODO: feed raw output through HKDF-SHA256 before use as a symmetric key
         return private_key_obj.exchange(ECDH(), peer_key_obj)
     except Exception as e:
         raise ValueError(f"ECDH key derivation failed: {e}")
