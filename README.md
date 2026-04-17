@@ -217,7 +217,17 @@ pip install -r requirements.txt
 > sudo cmake --install /tmp/liboqs/build
 > ```
 >
-> **Windows:** nainstaluj [CMake](https://cmake.org/download/) + [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/), pak stejný postup výše v PowerShellu.
+> **Windows (PowerShell jako administrátor):**
+> Nejdřív nainstaluj [CMake](https://cmake.org/download/) a [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (vyber workload „Desktop development with C++").
+> ```powershell
+> git clone --depth 1 --branch 0.15.0 https://github.com/open-quantum-safe/liboqs.git C:\liboqs
+> cmake -S C:\liboqs -B C:\liboqs\build -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=C:\liboqs\install
+> cmake --build C:\liboqs\build --config Release --parallel 4
+> cmake --install C:\liboqs\build --config Release
+> # přidej DLL na PATH (platí pro aktuální PowerShell session)
+> $env:PATH = "C:\liboqs\install\bin;" + $env:PATH
+> ```
+> Pro trvalé přidání do PATH: Nastavení systému → Proměnné prostředí → Path → přidej `C:\liboqs\install\bin`.
 >
 > Po instalaci nativní knihovny funguje `pip install -r requirements.txt` standardně.
 
