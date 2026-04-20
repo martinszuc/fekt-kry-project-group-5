@@ -119,8 +119,10 @@ def handshake():
     kem = data.get("kem", "mlkem")
     sig = data.get("sig", "mldsa")
     symmetric = data.get("symmetric", "aes_gcm")
-    if kem != "ecdh" or sig != "ecdsa":
-        return jsonify({"ok": False, "error": "Option 1 implemented: choose KEM=ECDH and Signature=ECDSA."}), 400
+    if kem not in ("ecdh", "mlkem"):
+        return jsonify({"ok": False, "error": "Unsupported KEM algorithm", }), 400
+    if sig not in ("ecdsa", "mldsa"):
+        return jsonify({"ok": False, "error": "Unsupported signature algorithm"}), 400
     if symmetric not in ("aes_gcm", "chacha20"):
         return jsonify({"ok": False, "error": "Unsupported symmetric algorithm"}), 400
 

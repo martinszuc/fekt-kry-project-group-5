@@ -73,60 +73,91 @@ def status():
 @app.route("/api/handshake", methods=["POST"])
 def handshake():
     data = request.get_json() or {}
+    phase = data.get("phase")
+
+    # --- 1. RESPONDER LOGIC (When Bob initiates to Alice) ---
+    if phase == "client_hello":
+        try:
+            # Alice acts as the 'responder' using the bob_server_hello logic
+            from src.crypto.handshake import bob_server_hello
+            b_state, server_hello = bob_server_hello(data)
+
+            # Store the responder state in Alice's session
+            SESSION.update({
+                "kem": server_hello.get("kem"),
+                "sig": server_hello.get("sig"),
+                "symmetric": server_hello.get("symmetric"),
+                "session_key": b_state.session_key,
+                "my_sig_priv": b_state.sig_private_key,
+                "my_sig_pub": b_state.sig_public_key,
+                "established": False
+            })
+            log_event("handshake_respond", algorithm=f"{SESSION['kem']}+{SESSION['sig']}", result="OK")
+            return jsonify(server_hello)  # Return the actual server_hello object
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 400
+
+    if phase == "finish":
+        try:
+            from src.crypto.handshake import bob_finish, BobHandshakeState
+            # Reconstruct responder state to verify Alice's finish
+            tmp_state = BobHandshakeState(
+                kem_private_key=b"", kem_public_key=b"",
+                sig_private_key=SESSION["my_sig_priv"],
+                sig_public_key=SESSION["my_sig_pub"],
+                symmetric_algo=SESSION["symmetric"],
+                session_key=SESSION["session_key"],
+            )
+            peer_sig_pub = bob_finish(tmp_state, data)
+            SESSION["peer_sig_pub"] = peer_sig_pub
+            SESSION["established"] = True
+            log_event("handshake_complete", result="OK")
+            return jsonify({"ok": True})
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 400
+
+    # --- 2. INITIATOR LOGIC (When Alice clicks the button) ---
+    # (The code below only runs if Alice is the one starting the handshake)
     kem = data.get("kem", "mlkem")
     sig = data.get("sig", "mldsa")
     symmetric = data.get("symmetric", "aes_gcm")
 
-    # Option 1: implement classical handshake only (ECDH + ECDSA)
-    if kem != "ecdh" or sig != "ecdsa":
-        return jsonify(
-            {
-                "ok": False,
-                "error": "Option 1 implemented: choose KEM=ECDH and Signature=ECDSA.",
-            }
-        ), 400
-    if symmetric not in ("aes_gcm", "chacha20"):
-        return jsonify({"ok": False, "error": "Unsupported symmetric algorithm"}), 400
-
     try:
+        # Generate ClientHello
         a_state, hello = alice_client_hello(kem_algo=kem, sig_algo=sig, symmetric_algo=symmetric)
         log_event("handshake_init", algorithm=f"{kem}+{sig}", result="OK")
-        server_hello = _post_json(app.config["PEER_URL"], "/api/handshake", hello)
-        if not server_hello.get("ok", True) and server_hello.get("error"):
-            raise ValueError(server_hello["error"])
 
+        # Send to Bob and get his ServerHello
+        server_hello = _post_json(app.config["PEER_URL"], "/api/handshake", hello)
+
+        # This is where Bob was failing before because Alice wasn't returning a server_hello
+        if not server_hello.get("phase") == "server_hello":
+            raise ValueError(f"Expected server_hello, got: {server_hello}")
+
+        # Process ServerHello
         (
             session_key,
-            alice_sig_pub,
-            alice_sig_priv,
-            bob_sig_pub,
+            my_sig_pub,
+            my_sig_priv,
+            peer_sig_pub,
             finish_msg,
         ) = alice_finish(a_state, server_hello)
 
+        # Send Finish to Bob
         finish_resp = _post_json(app.config["PEER_URL"], "/api/handshake", finish_msg)
-        if finish_resp.get("ok") is False:
-            raise ValueError(finish_resp.get("error", "finish failed"))
+        if not finish_resp.get("ok"):
+            raise ValueError("Peer rejected finish")
 
-        SESSION["kem"] = kem
-        SESSION["sig"] = sig
-        SESSION["symmetric"] = symmetric
-        SESSION["session_key"] = session_key
-        SESSION["my_sig_priv"] = alice_sig_priv
-        SESSION["my_sig_pub"] = alice_sig_pub
-        SESSION["peer_sig_pub"] = bob_sig_pub
-        SESSION["established"] = True
+        SESSION.update({
+            "kem": kem, "sig": sig, "symmetric": symmetric,
+            "session_key": session_key,
+            "my_sig_priv": my_sig_priv, "my_sig_pub": my_sig_pub,
+            "peer_sig_pub": peer_sig_pub, "established": True
+        })
 
-        log_event("handshake_complete", algorithm=f"{kem}+{sig}+{symmetric}", result="OK")
-        return jsonify(
-            {
-                "ok": True,
-                "message": "Handshake complete. Secure session established.",
-                "session_established": True,
-            }
-        )
+        return jsonify({"ok": True, "message": "Handshake complete.", "session_established": True})
     except Exception as e:
         SESSION["established"] = False
-        log_event("handshake_failed", algorithm=f"{kem}+{sig}", result="FAIL")
         return jsonify({"ok": False, "error": str(e)}), 400
 
 
@@ -150,7 +181,8 @@ def send():
             raise ValueError(resp.get("error", "peer rejected message"))
 
         SESSION["messages"].append({"from": "me", "text": str(message)})
-        log_event("message_sent", algorithm=f"{SESSION['symmetric']}+{SESSION['sig']}", data_size=len(message), result="OK")
+        log_event("message_sent", algorithm=f"{SESSION['symmetric']}+{SESSION['sig']}", data_size=len(message),
+                  result="OK")
         return jsonify({"ok": True, "message": "Message sent securely."})
     except Exception as e:
         log_event("message_send_failed", algorithm=f"{SESSION.get('symmetric')}+{SESSION.get('sig')}", result="FAIL")
@@ -172,7 +204,8 @@ def incoming():
         pt = receive_message(SESSION["session_key"], SESSION["peer_sig_pub"], payload)
         text = pt.decode("utf-8", errors="replace")
         SESSION["messages"].append({"from": "peer", "text": text})
-        log_event("message_received", algorithm=f"{SESSION['symmetric']}+{SESSION['sig']}", data_size=len(pt), result="OK")
+        log_event("message_received", algorithm=f"{SESSION['symmetric']}+{SESSION['sig']}", data_size=len(pt),
+                  result="OK")
         return jsonify({"ok": True})
     except Exception as e:
         log_event("message_receive_failed", algorithm=f"{SESSION.get('symmetric')}+{SESSION.get('sig')}", result="FAIL")

@@ -20,7 +20,10 @@ from cryptography.hazmat.primitives.hashes import SHA256
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from src.crypto import kem_classical
+from src.crypto import kem_pq
+
 from src.crypto import signatures_classical
+from src.crypto import signatures_pq
 
 
 def _b64e(data: bytes) -> str:
@@ -74,14 +77,20 @@ def alice_client_hello(*, kem_algo: str, sig_algo: str, symmetric_algo: str) -> 
     - state: stored by Alice until ServerHello arrives
     - message dict: JSON-serializable (base64 for bytes)
     """
-    if kem_algo != "ecdh":
-        raise ValueError("Option 1 handshake supports kem_algo='ecdh' only")
-    if sig_algo != "ecdsa":
-        raise ValueError("Option 1 handshake supports sig_algo='ecdsa' only")
+    if kem_algo not in ("ecdh", "mlkem"):
+        raise ValueError("Unsupported KEM algorithm")
+    if sig_algo not in ("ecdsa", "mldsa"):
+        raise ValueError("Unsupported signature algorithm")
     if symmetric_algo not in ("aes_gcm", "chacha20"):
         raise ValueError("Unsupported symmetric algorithm")
 
-    kem_pub, kem_priv = kem_classical.generate_keypair()
+    if kem_algo == "ecdh":
+        kem = kem_classical
+    if kem_algo == "mlkem":
+        kem = kem_pq
+
+    kem_pub, kem_priv = kem.generate_keypair()
+
     state = AliceHandshakeState(
         kem_private_key=kem_priv,
         kem_public_key=kem_pub,
@@ -109,20 +118,40 @@ def bob_server_hello(client_hello: dict) -> tuple[BobHandshakeState, dict]:
         raise ValueError("Invalid client_hello")
 
     kem_algo = client_hello.get("kem")
+
     sig_algo = client_hello.get("sig")
     symmetric_algo = client_hello.get("symmetric")
-    if kem_algo != "ecdh" or sig_algo != "ecdsa":
-        raise ValueError("Option 1 supports ecdh+ecdsa only")
+    if kem_algo not in ("ecdh", "mlkem"):
+        raise ValueError("Unsupported KEM algorithm")
+
+    if sig_algo not in ("ecdsa", "mldsa"):
+        raise ValueError("Unsupported signature algorithm")
+
     if symmetric_algo not in ("aes_gcm", "chacha20"):
         raise ValueError("Unsupported symmetric algorithm")
 
     alice_kem_pub = _b64d(client_hello["alice_kem_pub"])
 
-    bob_kem_pub, bob_kem_priv = kem_classical.generate_keypair()
-    shared_secret = kem_classical.derive_shared_secret(bob_kem_priv, alice_kem_pub)
+    bob_kem_priv = b""
+
+    if kem_algo == "ecdh":
+        bob_kem_pub, bob_kem_priv = kem_classical.generate_keypair()
+        shared_secret = kem_classical.derive_shared_secret(bob_kem_priv, alice_kem_pub)
+        # bob_kem_payload = bob_kem_pub
+    elif kem_algo == "mlkem":
+        # Bob creates secret and ciphertext from Alice's public key
+        ciphertext, shared_secret = kem_pq.encapsulate(alice_kem_pub)
+        bob_kem_pub = ciphertext  # This is what we send
+        bob_kem_priv = b""
+
     session_key = derive_session_key(shared_secret)
 
-    bob_sig_pub, bob_sig_priv = signatures_classical.generate_keypair()
+    if sig_algo == "ecdsa":
+        signatures = signatures_classical
+    if sig_algo == "mldsa":
+        signatures = signatures_pq
+
+    bob_sig_pub, bob_sig_priv = signatures.generate_keypair()
 
     transcript = {
         "v": 1,
@@ -133,7 +162,8 @@ def bob_server_hello(client_hello: dict) -> tuple[BobHandshakeState, dict]:
         "bob_kem_pub": _b64e(bob_kem_pub),
         "bob_sig_pub": _b64e(bob_sig_pub),
     }
-    signature = signatures_classical.sign(bob_sig_priv, _canonical_json(transcript))
+
+    signature = signatures.sign(bob_sig_priv, _canonical_json(transcript))
 
     state = BobHandshakeState(
         kem_private_key=bob_kem_priv,
@@ -187,14 +217,29 @@ def alice_finish(state: AliceHandshakeState, server_hello: dict) -> tuple[bytes,
         "bob_kem_pub": server_hello["bob_kem_pub"],
         "bob_sig_pub": server_hello["bob_sig_pub"],
     }
-    if not signatures_classical.verify(bob_sig_pub, _canonical_json(transcript), signature):
+    sig_algo = server_hello.get("sig")
+    kem_algo = server_hello.get("kem")
+
+
+    if sig_algo == "ecdsa":
+        signatures = signatures_classical
+    if sig_algo == "mldsa":
+        signatures = signatures_pq
+
+    if not signatures.verify(bob_sig_pub, _canonical_json(transcript), signature):
         raise ValueError("ServerHello signature verification failed")
 
-    bob_kem_pub = _b64d(server_hello["bob_kem_pub"])
-    shared_secret = kem_classical.derive_shared_secret(state.kem_private_key, bob_kem_pub)
+    if kem_algo == "ecdh":
+        bob_payload = _b64d(server_hello["bob_kem_pub"])
+        shared_secret = kem_classical.derive_shared_secret(state.kem_private_key, bob_payload)
+    elif kem_algo == "mlkem":
+        bob_payload = _b64d(server_hello["bob_kem_pub"])
+        # Alice decrypts the ciphertext Bob sent
+        shared_secret = kem_pq.decapsulate(state.kem_private_key, bob_payload)
+
     session_key = derive_session_key(shared_secret)
 
-    alice_sig_pub, alice_sig_priv = signatures_classical.generate_keypair()
+    alice_sig_pub, alice_sig_priv = signatures.generate_keypair()
     finish_msg = {
         "v": 1,
         "phase": "finish",
@@ -219,8 +264,6 @@ def perform_handshake(kem_algo, sig_algo, initiator_side):
 
     Returns (session_key, peer_signing_public_key) for the requested side.
     """
-    if kem_algo != "ecdh" or sig_algo != "ecdsa":
-        raise ValueError("Option 1 supports ecdh+ecdsa only")
 
     a_state, hello = alice_client_hello(kem_algo=kem_algo, sig_algo=sig_algo, symmetric_algo="aes_gcm")
     b_state, sh = bob_server_hello(hello)

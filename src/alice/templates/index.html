@@ -10,9 +10,9 @@
   <h1>Post-Quantum Crypto Demo <span class="role-badge role-{{ role }}">{{ role_label }}</span></h1>
   <p class="subtitle">Port {{ '5001' if role == 'alice' else '5002' }} — P2P secure communication</p>
 
-  <div class="alert alert-info">
-    Crypto modules are stubs. Implement Chunks 2–10 per project plan. UI is ready.
-  </div>
+<!--  <div class="alert alert-info">-->
+<!--    Crypto modules are stubs. Implement Chunks 2–10 per project plan. UI is ready.-->
+<!--  </div>-->
 
   <div class="grid">
     <div class="panel">
@@ -58,6 +58,7 @@
       <div id="messages">
         <p class="muted">No messages yet.</p>
       </div>
+      <button class="btn btn-secondary" id="btn-refresh-messages" style="margin-top: 0.5rem;">Refresh</button>
     </div>
 
     <div class="panel">
@@ -91,6 +92,7 @@
         return `<div class="message ${cls}"><strong>${label}:</strong> ${m.text}</div>`;
       }).join("");
     }
+    document.getElementById("btn-refresh-messages").addEventListener("click", refreshMessages);
 
     document.getElementById("btn-handshake").addEventListener("click", async () => {
       const kem = document.getElementById("kem").value;
