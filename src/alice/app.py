@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from flask import Flask, render_template, request, jsonify
 from config import ALICE_PORT, KEM_OPTIONS, SIGNATURE_OPTIONS, SYMMETRIC_OPTIONS, BOB_URL
 from src.utils.logger import log_event, get_log_entries
-from src.crypto.handshake import alice_client_hello, alice_finish
+from src.crypto.handshake import alice_client_hello, alice_finish, bob_server_hello, bob_finish, BobHandshakeState
 from src.crypto.transfer import send_message, receive_message
 
 app = Flask(__name__, template_folder="templates", static_folder="../static")
@@ -78,8 +78,6 @@ def handshake():
     # --- 1. RESPONDER LOGIC (When Bob initiates to Alice) ---
     if phase == "client_hello":
         try:
-            # Alice acts as the 'responder' using the bob_server_hello logic
-            from src.crypto.handshake import bob_server_hello
             b_state, server_hello = bob_server_hello(data)
 
             # Store the responder state in Alice's session
@@ -93,14 +91,14 @@ def handshake():
                 "established": False
             })
             log_event("handshake_respond", algorithm=f"{SESSION['kem']}+{SESSION['sig']}", result="OK")
-            return jsonify(server_hello)  # Return the actual server_hello object
+            return jsonify(server_hello)
         except Exception as e:
+            log_event("handshake_failed", algorithm=f"{data.get('kem')}+{data.get('sig')}", result="FAIL")
             return jsonify({"ok": False, "error": str(e)}), 400
 
     if phase == "finish":
         try:
-            from src.crypto.handshake import bob_finish, BobHandshakeState
-            # Reconstruct responder state to verify Alice's finish
+            # Reconstruct responder state to verify peer's finish
             tmp_state = BobHandshakeState(
                 kem_private_key=b"", kem_public_key=b"",
                 sig_private_key=SESSION["my_sig_priv"],
@@ -114,6 +112,7 @@ def handshake():
             log_event("handshake_complete", result="OK")
             return jsonify({"ok": True})
         except Exception as e:
+            log_event("handshake_failed", algorithm=f"{SESSION.get('kem')}+{SESSION.get('sig')}", result="FAIL")
             return jsonify({"ok": False, "error": str(e)}), 400
 
     # --- 2. INITIATOR LOGIC (When Alice clicks the button) ---
@@ -158,6 +157,7 @@ def handshake():
         return jsonify({"ok": True, "message": "Handshake complete.", "session_established": True})
     except Exception as e:
         SESSION["established"] = False
+        log_event("handshake_failed", algorithm=f"{kem}+{sig}", result="FAIL")
         return jsonify({"ok": False, "error": str(e)}), 400
 
 
@@ -175,6 +175,7 @@ def send():
             SESSION["my_sig_priv"],
             message,
             SESSION["symmetric"],
+            SESSION["sig"],
         )
         resp = _post_json(app.config["PEER_URL"], "/api/incoming", payload)
         if resp.get("ok") is not True:
@@ -201,7 +202,7 @@ def incoming():
 
     payload = request.get_json() or {}
     try:
-        pt = receive_message(SESSION["session_key"], SESSION["peer_sig_pub"], payload)
+        pt = receive_message(SESSION["session_key"], SESSION["peer_sig_pub"], payload, SESSION["sig"])
         text = pt.decode("utf-8", errors="replace")
         SESSION["messages"].append({"from": "peer", "text": text})
         log_event("message_received", algorithm=f"{SESSION['symmetric']}+{SESSION['sig']}", data_size=len(pt),

@@ -86,7 +86,7 @@ def alice_client_hello(*, kem_algo: str, sig_algo: str, symmetric_algo: str) -> 
 
     if kem_algo == "ecdh":
         kem = kem_classical
-    if kem_algo == "mlkem":
+    elif kem_algo == "mlkem":
         kem = kem_pq
 
     kem_pub, kem_priv = kem.generate_keypair()
@@ -132,24 +132,23 @@ def bob_server_hello(client_hello: dict) -> tuple[BobHandshakeState, dict]:
 
     alice_kem_pub = _b64d(client_hello["alice_kem_pub"])
 
-    bob_kem_priv = b""
-
     if kem_algo == "ecdh":
         bob_kem_pub, bob_kem_priv = kem_classical.generate_keypair()
         shared_secret = kem_classical.derive_shared_secret(bob_kem_priv, alice_kem_pub)
-        # bob_kem_payload = bob_kem_pub
     elif kem_algo == "mlkem":
-        # Bob creates secret and ciphertext from Alice's public key
+        # Bob encapsulates against Alice's public key; sends ciphertext, keeps shared secret
         ciphertext, shared_secret = kem_pq.encapsulate(alice_kem_pub)
-        bob_kem_pub = ciphertext  # This is what we send
+        bob_kem_pub = ciphertext
         bob_kem_priv = b""
 
     session_key = derive_session_key(shared_secret)
 
     if sig_algo == "ecdsa":
         signatures = signatures_classical
-    if sig_algo == "mldsa":
+    elif sig_algo == "mldsa":
         signatures = signatures_pq
+    else:
+        raise ValueError(f"Unsupported signature algorithm: {sig_algo}")
 
     bob_sig_pub, bob_sig_priv = signatures.generate_keypair()
 
@@ -220,11 +219,12 @@ def alice_finish(state: AliceHandshakeState, server_hello: dict) -> tuple[bytes,
     sig_algo = server_hello.get("sig")
     kem_algo = server_hello.get("kem")
 
-
     if sig_algo == "ecdsa":
         signatures = signatures_classical
-    if sig_algo == "mldsa":
+    elif sig_algo == "mldsa":
         signatures = signatures_pq
+    else:
+        raise ValueError(f"Unsupported signature algorithm: {sig_algo}")
 
     if not signatures.verify(bob_sig_pub, _canonical_json(transcript), signature):
         raise ValueError("ServerHello signature verification failed")

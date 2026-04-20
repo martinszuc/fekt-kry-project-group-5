@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from flask import Flask, render_template, request, jsonify
 from config import BOB_PORT, KEM_OPTIONS, SIGNATURE_OPTIONS, SYMMETRIC_OPTIONS, ALICE_URL
 from src.utils.logger import log_event, get_log_entries
-from src.crypto.handshake import bob_server_hello, bob_finish
+from src.crypto.handshake import bob_server_hello, bob_finish, alice_client_hello, alice_finish, BobHandshakeState
 from src.crypto.transfer import send_message, receive_message
 
 app = Flask(__name__, template_folder="templates", static_folder="../static")
@@ -120,16 +120,13 @@ def handshake():
     sig = data.get("sig", "mldsa")
     symmetric = data.get("symmetric", "aes_gcm")
     if kem not in ("ecdh", "mlkem"):
-        return jsonify({"ok": False, "error": "Unsupported KEM algorithm", }), 400
+        return jsonify({"ok": False, "error": "Unsupported KEM algorithm"}), 400
     if sig not in ("ecdsa", "mldsa"):
         return jsonify({"ok": False, "error": "Unsupported signature algorithm"}), 400
     if symmetric not in ("aes_gcm", "chacha20"):
         return jsonify({"ok": False, "error": "Unsupported symmetric algorithm"}), 400
 
     try:
-        # Import here to reuse Alice initiator logic without duplicating code
-        from src.crypto.handshake import alice_client_hello, alice_finish
-
         a_state, hello = alice_client_hello(kem_algo=kem, sig_algo=sig, symmetric_algo=symmetric)
         log_event("handshake_init", algorithm=f"{kem}+{sig}", result="OK")
         server_hello = _post_json(app.config["PEER_URL"], "/api/handshake", hello)
@@ -174,6 +171,7 @@ def send():
             SESSION["my_sig_priv"],
             message,
             SESSION["symmetric"],
+            SESSION["sig"],
         )
         resp = _post_json(app.config["PEER_URL"], "/api/incoming", payload)
         if resp.get("ok") is not True:
@@ -199,7 +197,7 @@ def incoming():
 
     payload = request.get_json() or {}
     try:
-        pt = receive_message(SESSION["session_key"], SESSION["peer_sig_pub"], payload)
+        pt = receive_message(SESSION["session_key"], SESSION["peer_sig_pub"], payload, SESSION["sig"])
         text = pt.decode("utf-8", errors="replace")
         SESSION["messages"].append({"from": "peer", "text": text})
         log_event("message_received", algorithm=f"{SESSION['symmetric']}+{SESSION['sig']}", data_size=len(pt), result="OK")
