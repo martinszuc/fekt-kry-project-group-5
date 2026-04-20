@@ -121,8 +121,13 @@
     async function refreshLogs() {
       const data = await api("/api/logs");
       const el = document.getElementById("logs");
+      const lvlClass = { INFO: "log-info", WARN: "log-warn", ERROR: "log-error" };
       el.innerHTML = data.entries.length
-        ? data.entries.map(e => `<div class="log-entry status-${e.result === "OK" ? "ok" : "fail"}">${e.timestamp} | ${e.event} | ${e.algorithm} | ${e.result}</div>`).join("")
+        ? data.entries.map(e => {
+            const cls = lvlClass[e.level] || "log-info";
+            const detail = e.detail ? `<span class="log-detail">${e.detail}</span>` : "";
+            return `<div class="log-entry ${cls}"><span class="log-ts">${e.timestamp}</span> <span class="log-lvl">${e.level}</span> <span class="log-event">${e.event}</span>${detail}</div>`;
+          }).join("")
         : "<div class='log-entry'>No entries</div>";
     }
 

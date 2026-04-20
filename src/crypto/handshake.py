@@ -21,9 +21,9 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from src.crypto import kem_classical
 from src.crypto import kem_pq
-
 from src.crypto import signatures_classical
 from src.crypto import signatures_pq
+from src.utils import logger
 
 
 def _b64e(data: bytes) -> str:
@@ -89,7 +89,9 @@ def alice_client_hello(*, kem_algo: str, sig_algo: str, symmetric_algo: str) -> 
     elif kem_algo == "mlkem":
         kem = kem_pq
 
+    logger.info("handshake.client_hello", f"KEM={kem_algo}  SIG={sig_algo}  SYM={symmetric_algo}")
     kem_pub, kem_priv = kem.generate_keypair()
+    logger.info("kem.keygen", f"algo={kem_algo}  pub={len(kem_pub)}B  priv={len(kem_priv)}B")
 
     state = AliceHandshakeState(
         kem_private_key=kem_priv,
@@ -132,16 +134,21 @@ def bob_server_hello(client_hello: dict) -> tuple[BobHandshakeState, dict]:
 
     alice_kem_pub = _b64d(client_hello["alice_kem_pub"])
 
+    logger.info("handshake.server_hello", f"algo={kem_algo}+{sig_algo}  sym={symmetric_algo}")
+
     if kem_algo == "ecdh":
         bob_kem_pub, bob_kem_priv = kem_classical.generate_keypair()
         shared_secret = kem_classical.derive_shared_secret(bob_kem_priv, alice_kem_pub)
+        logger.info("kem.derive", f"algo=ecdh  peer_pub={len(alice_kem_pub)}B  secret={len(shared_secret)}B")
     elif kem_algo == "mlkem":
         # Bob encapsulates against Alice's public key; sends ciphertext, keeps shared secret
         ciphertext, shared_secret = kem_pq.encapsulate(alice_kem_pub)
         bob_kem_pub = ciphertext
         bob_kem_priv = b""
+        logger.info("kem.encapsulate", f"algo=mlkem  ct={len(ciphertext)}B  secret={len(shared_secret)}B")
 
     session_key = derive_session_key(shared_secret)
+    logger.info("kdf.hkdf", f"input={len(shared_secret)}B  →  session_key={len(session_key)}B")
 
     if sig_algo == "ecdsa":
         signatures = signatures_classical
@@ -151,6 +158,7 @@ def bob_server_hello(client_hello: dict) -> tuple[BobHandshakeState, dict]:
         raise ValueError(f"Unsupported signature algorithm: {sig_algo}")
 
     bob_sig_pub, bob_sig_priv = signatures.generate_keypair()
+    logger.info("sig.keygen", f"algo={sig_algo}  pub={len(bob_sig_pub)}B  priv={len(bob_sig_priv)}B")
 
     transcript = {
         "v": 1,
@@ -162,7 +170,9 @@ def bob_server_hello(client_hello: dict) -> tuple[BobHandshakeState, dict]:
         "bob_sig_pub": _b64e(bob_sig_pub),
     }
 
-    signature = signatures.sign(bob_sig_priv, _canonical_json(transcript))
+    transcript_bytes = _canonical_json(transcript)
+    signature = signatures.sign(bob_sig_priv, transcript_bytes)
+    logger.info("sig.sign", f"algo={sig_algo}  data={len(transcript_bytes)}B  sig={len(signature)}B")
 
     state = BobHandshakeState(
         kem_private_key=bob_kem_priv,
@@ -219,6 +229,8 @@ def alice_finish(state: AliceHandshakeState, server_hello: dict) -> tuple[bytes,
     sig_algo = server_hello.get("sig")
     kem_algo = server_hello.get("kem")
 
+    logger.info("handshake.alice_finish", f"algo={kem_algo}+{sig_algo}")
+
     if sig_algo == "ecdsa":
         signatures = signatures_classical
     elif sig_algo == "mldsa":
@@ -226,20 +238,26 @@ def alice_finish(state: AliceHandshakeState, server_hello: dict) -> tuple[bytes,
     else:
         raise ValueError(f"Unsupported signature algorithm: {sig_algo}")
 
-    if not signatures.verify(bob_sig_pub, _canonical_json(transcript), signature):
+    transcript_bytes = _canonical_json(transcript)
+    ok = signatures.verify(bob_sig_pub, transcript_bytes, signature)
+    logger.info("sig.verify", f"algo={sig_algo}  data={len(transcript_bytes)}B  result={'ok' if ok else 'FAIL'}")
+    if not ok:
         raise ValueError("ServerHello signature verification failed")
 
     if kem_algo == "ecdh":
         bob_payload = _b64d(server_hello["bob_kem_pub"])
         shared_secret = kem_classical.derive_shared_secret(state.kem_private_key, bob_payload)
+        logger.info("kem.derive", f"algo=ecdh  secret={len(shared_secret)}B")
     elif kem_algo == "mlkem":
         bob_payload = _b64d(server_hello["bob_kem_pub"])
-        # Alice decrypts the ciphertext Bob sent
         shared_secret = kem_pq.decapsulate(state.kem_private_key, bob_payload)
+        logger.info("kem.decapsulate", f"algo=mlkem  ct={len(bob_payload)}B  →  secret={len(shared_secret)}B")
 
     session_key = derive_session_key(shared_secret)
+    logger.info("kdf.hkdf", f"input={len(shared_secret)}B  →  session_key={len(session_key)}B")
 
     alice_sig_pub, alice_sig_priv = signatures.generate_keypair()
+    logger.info("sig.keygen", f"algo={sig_algo}  pub={len(alice_sig_pub)}B  (alice ephemeral)")
     finish_msg = {
         "v": 1,
         "phase": "finish",

@@ -140,6 +140,16 @@ textarea {
 .status-ok { color: var(--success); }
 .status-fail { color: var(--error); }
 
+/* log level colours */
+.log-info  { color: var(--muted); }
+.log-warn  { color: var(--warning); }
+.log-error { color: var(--error); }
+
+.log-ts    { opacity: 0.55; margin-right: 0.4rem; }
+.log-lvl   { font-weight: 600; margin-right: 0.5rem; width: 3.2rem; display: inline-block; }
+.log-event { color: var(--text); margin-right: 0.5rem; }
+.log-detail { color: var(--muted); font-size: 0.75rem; }
+
 .messages-panel .message {
   padding: 0.5rem;
   margin-bottom: 0.5rem;

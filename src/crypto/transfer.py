@@ -16,6 +16,7 @@ from src.crypto.symmetric import (
     decrypt_chacha20,
 )
 from src.crypto import signatures_classical, signatures_pq
+from src.utils import logger
 
 
 def _b64e(data: bytes) -> str:
@@ -48,29 +49,24 @@ def send_message(session_key, signing_key, message, symmetric_algo, sig_algo="ec
         "symmetric": symmetric_algo,
     }
 
+    logger.info("transfer.send", f"sym={symmetric_algo}  sig={sig_algo}  pt={len(message_bytes)}B")
+
     if symmetric_algo == "aes_gcm":
         ct, nonce, tag = encrypt_aes_gcm(session_key, message_bytes)
-        payload.update(
-            {
-                "nonce": _b64e(nonce),
-                "ciphertext": _b64e(ct),
-                "tag": _b64e(tag),
-            }
-        )
+        payload.update({"nonce": _b64e(nonce), "ciphertext": _b64e(ct), "tag": _b64e(tag)})
+        logger.info("transfer.encrypt", f"algo=aes_gcm  ct={len(ct)}B  nonce={len(nonce)}B  tag={len(tag)}B")
     elif symmetric_algo == "chacha20":
         ct, nonce = encrypt_chacha20(session_key, message_bytes)
-        payload.update(
-            {
-                "nonce": _b64e(nonce),
-                "ciphertext": _b64e(ct),
-            }
-        )
+        payload.update({"nonce": _b64e(nonce), "ciphertext": _b64e(ct)})
+        logger.info("transfer.encrypt", f"algo=chacha20  ct={len(ct)}B  nonce={len(nonce)}B")
     else:
         raise ValueError("Unsupported symmetric algorithm")
 
     sig_mod = _sig_module(sig_algo)
     to_sign = dict(payload)
-    sig = sig_mod.sign(signing_key, _canonical_json(to_sign))
+    to_sign_bytes = _canonical_json(to_sign)
+    sig = sig_mod.sign(signing_key, to_sign_bytes)
+    logger.info("transfer.sign", f"algo={sig_algo}  payload={len(to_sign_bytes)}B  sig={len(sig)}B")
     payload["signature"] = _b64e(sig)
     return payload
 
@@ -89,17 +85,25 @@ def receive_message(session_key, peer_verify_key, payload, sig_algo="ecdsa"):
     signature = _b64d(signature_b64)
 
     sig_mod = _sig_module(sig_algo)
-    if not sig_mod.verify(peer_verify_key, _canonical_json(signed_obj), signature):
+    signed_bytes = _canonical_json(signed_obj)
+    ok = sig_mod.verify(peer_verify_key, signed_bytes, signature)
+    logger.info("transfer.verify", f"algo={sig_algo}  data={len(signed_bytes)}B  result={'ok' if ok else 'FAIL'}")
+    if not ok:
         raise ValueError("Signature verification failed")
 
     symmetric_algo = payload.get("symmetric")
     nonce = _b64d(payload["nonce"])
     ciphertext = _b64d(payload["ciphertext"])
+    logger.info("transfer.receive", f"sym={symmetric_algo}  ct={len(ciphertext)}B")
 
     if symmetric_algo == "aes_gcm":
         tag = _b64d(payload["tag"])
-        return decrypt_aes_gcm(session_key, ciphertext, nonce, tag)
+        pt = decrypt_aes_gcm(session_key, ciphertext, nonce, tag)
+        logger.info("transfer.decrypt", f"algo=aes_gcm  ct={len(ciphertext)}B  →  pt={len(pt)}B")
+        return pt
     if symmetric_algo == "chacha20":
-        return decrypt_chacha20(session_key, ciphertext, nonce)
+        pt = decrypt_chacha20(session_key, ciphertext, nonce)
+        logger.info("transfer.decrypt", f"algo=chacha20  ct={len(ciphertext)}B  →  pt={len(pt)}B")
+        return pt
 
     raise ValueError("Unsupported symmetric algorithm")
