@@ -124,36 +124,30 @@ class TestSendReceivePQ:
     def test_roundtrip_pq_aes(self):
         key, pub, priv = _make_session(use_pq=True)
         msg = b"Post-Quantum roundtrip test"
-        payload = send_message(key, priv, msg, "aes_gcm")
-        assert receive_message(key, pub, payload) == msg
+        payload = send_message(key, priv, msg, "aes_gcm", "mldsa")
+        assert receive_message(key, pub, payload, "mldsa") == msg
 
     def test_roundtrip_pq_chacha(self):
         key, pub, priv = _make_session(use_pq=True)
         msg = b"Post-Quantum Chacha test"
-        payload = send_message(key, priv, msg, "chacha20")
-        assert receive_message(key, pub, payload) == msg
+        payload = send_message(key, priv, msg, "chacha20", "mldsa")
+        assert receive_message(key, pub, payload, "mldsa") == msg
 
     def test_tampered_pq_signature_raises(self):
         key, pub, priv = _make_session(use_pq=True)
-        p = send_message(key, priv, b"secure data", "aes_gcm")
+        p = send_message(key, priv, b"secure data", "aes_gcm", "mldsa")
 
-        # 1. Get the B64 string and decode to bytes
         sig_bytes = bytearray(base64.b64decode(p["signature"]))
-
-        # 2. Tamper with the raw bytes (e.g., flip the first byte)
         sig_bytes[0] = (sig_bytes[0] + 1) % 256
-
-        # 3. Re-encode to B64 string and update payload
         p["signature"] = base64.b64encode(sig_bytes).decode("ascii")
 
-        # 4. Verification should now fail
         with pytest.raises(ValueError, match="[Ss]ignature"):
-            receive_message(key, pub, p)
+            receive_message(key, pub, p, "mldsa")
 
     def test_wrong_pq_key_raises(self):
         key, _, priv = _make_session(use_pq=True)
         wrong_pub, _ = signatures_pq.generate_keypair()
-        p = send_message(key, priv, b"data", "aes_gcm")
+        p = send_message(key, priv, b"data", "aes_gcm", "mldsa")
 
         with pytest.raises((ValueError, Exception)):
-            receive_message(key, wrong_pub, p)
+            receive_message(key, wrong_pub, p, "mldsa")

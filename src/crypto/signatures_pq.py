@@ -23,10 +23,9 @@ def sign(private_key: bytes, message: bytes) -> bytes:
     try:
         # FIPS 204 requires a context string (ctx), default is empty bytes
         ctx = b""
-        # FIPS 204 Deterministic: randomness seed is 32 zero bytes
+        # Fixed-zero randomness gives deterministic signatures (good for tests).
+        # For production, replace with os.urandom(32) to use hedged mode (FIPS 204 §5.2).
         randomness = b"\x00" * 32
-
-        # ML_DSA_65.sign(sk, msg, ctx, rnd)
         return ML_DSA_65.sign(private_key, message, ctx, randomness)
     except Exception as e:
         raise ValueError(f"ML-DSA signing failed: {e}")

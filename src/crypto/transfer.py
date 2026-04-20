@@ -15,7 +15,6 @@ from src.crypto.symmetric import (
     encrypt_chacha20,
     decrypt_chacha20,
 )
-# Import both modules
 from src.crypto import signatures_classical, signatures_pq
 
 
@@ -31,18 +30,13 @@ def _canonical_json(obj: dict) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-def _get_sig_module(key: bytes):
-    """
-    Heuristic to determine if the key belongs to Classical (ECDSA) or PQ (ML-DSA).
-    ECDSA keys (DER) are < 200 bytes.
-    ML-DSA-65 keys are 1952 bytes (public) or 4032 bytes (private).
-    """
-    if len(key) > 500:
+def _sig_module(sig_algo: str):
+    if sig_algo == "mldsa":
         return signatures_pq
     return signatures_classical
 
 
-def send_message(session_key, signing_key, message, symmetric_algo):
+def send_message(session_key, signing_key, message, symmetric_algo, sig_algo="ecdsa"):
     """Encrypt and sign message. Returns payload for transmission."""
     if not isinstance(message, (bytes, bytearray)):
         message_bytes = str(message).encode("utf-8")
@@ -74,16 +68,14 @@ def send_message(session_key, signing_key, message, symmetric_algo):
     else:
         raise ValueError("Unsupported symmetric algorithm")
 
-    # Select module based on key size
-    sig_mod = _get_sig_module(signing_key)
-
+    sig_mod = _sig_module(sig_algo)
     to_sign = dict(payload)
     sig = sig_mod.sign(signing_key, _canonical_json(to_sign))
     payload["signature"] = _b64e(sig)
     return payload
 
 
-def receive_message(session_key, peer_verify_key, payload):
+def receive_message(session_key, peer_verify_key, payload, sig_algo="ecdsa"):
     """Decrypt and verify. Returns plaintext or raises on tampering."""
     if payload.get("v") != 1:
         raise ValueError("Unsupported payload version")
@@ -96,9 +88,7 @@ def receive_message(session_key, peer_verify_key, payload):
     signed_obj.pop("signature", None)
     signature = _b64d(signature_b64)
 
-    # Select module based on key size
-    sig_mod = _get_sig_module(peer_verify_key)
-
+    sig_mod = _sig_module(sig_algo)
     if not sig_mod.verify(peer_verify_key, _canonical_json(signed_obj), signature):
         raise ValueError("Signature verification failed")
 
