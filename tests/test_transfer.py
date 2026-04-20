@@ -6,12 +6,17 @@ import copy
 import os
 import pytest
 from src.crypto import signatures_classical
+from src.crypto import signatures_pq
 from src.crypto.transfer import send_message, receive_message
+import base64
 
-
-def _make_session():
+def _make_session(use_pq=False):
+    """
+    Helper to create a session with either Classical or PQ keys.
+    """
     session_key = os.urandom(32)
-    sig_pub, sig_priv = signatures_classical.generate_keypair()
+    sig_mod = signatures_pq if use_pq else signatures_classical
+    sig_pub, sig_priv = sig_mod.generate_keypair()
     return session_key, sig_pub, sig_priv
 
 
@@ -107,3 +112,48 @@ class TestEdgeCases:
         key, pub, priv = _make_session()
         payload = send_message(key, priv, b"", "aes_gcm")
         assert receive_message(key, pub, payload) == b""
+
+
+class TestSendReceivePQ:
+    """
+    Ensures that send/receive logic works with ML-DSA (PQ) signatures.
+    PQ signatures and keys are much larger, which tests the robustness
+    of the serialization/payload handling.
+    """
+
+    def test_roundtrip_pq_aes(self):
+        key, pub, priv = _make_session(use_pq=True)
+        msg = b"Post-Quantum roundtrip test"
+        payload = send_message(key, priv, msg, "aes_gcm")
+        assert receive_message(key, pub, payload) == msg
+
+    def test_roundtrip_pq_chacha(self):
+        key, pub, priv = _make_session(use_pq=True)
+        msg = b"Post-Quantum Chacha test"
+        payload = send_message(key, priv, msg, "chacha20")
+        assert receive_message(key, pub, payload) == msg
+
+    def test_tampered_pq_signature_raises(self):
+        key, pub, priv = _make_session(use_pq=True)
+        p = send_message(key, priv, b"secure data", "aes_gcm")
+
+        # 1. Get the B64 string and decode to bytes
+        sig_bytes = bytearray(base64.b64decode(p["signature"]))
+
+        # 2. Tamper with the raw bytes (e.g., flip the first byte)
+        sig_bytes[0] = (sig_bytes[0] + 1) % 256
+
+        # 3. Re-encode to B64 string and update payload
+        p["signature"] = base64.b64encode(sig_bytes).decode("ascii")
+
+        # 4. Verification should now fail
+        with pytest.raises(ValueError, match="[Ss]ignature"):
+            receive_message(key, pub, p)
+
+    def test_wrong_pq_key_raises(self):
+        key, _, priv = _make_session(use_pq=True)
+        wrong_pub, _ = signatures_pq.generate_keypair()
+        p = send_message(key, priv, b"data", "aes_gcm")
+
+        with pytest.raises((ValueError, Exception)):
+            receive_message(key, wrong_pub, p)
