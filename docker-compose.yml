@@ -1,0 +1,16 @@
+services:
+  alice:
+    build: .
+    ports:
+      - "5001:5001"
+    environment:
+      - BOB_URL=http://bob:5002
+    command: python src/alice/app.py
+
+  bob:
+    build: .
+    ports:
+      - "5002:5002"
+    environment:
+      - ALICE_URL=http://alice:5001
+    command: python src/bob/app.py
