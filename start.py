@@ -73,12 +73,29 @@ def setup():
         sys.exit(1)
 
 
+def _kill(proc):
+    """Kill a process and its children (handles Flask's debug reloader)."""
+    try:
+        if sys.platform == "win32":
+            proc.kill()
+        else:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+    except (ProcessLookupError, OSError):
+        pass
+
+
 def launch():
+    # start_new_session puts each Flask process in its own process group so
+    # killpg() also reaches the reloader child Flask spawns in debug mode.
+    popen_kwargs = {"cwd": ROOT}
+    if sys.platform != "win32":
+        popen_kwargs["start_new_session"] = True
+
     print("\nStarting Alice on http://localhost:5001 ...")
-    alice = subprocess.Popen([str(VENV_PYTHON), "src/alice/app.py"], cwd=ROOT)
+    alice = subprocess.Popen([str(VENV_PYTHON), "src/alice/app.py"], **popen_kwargs)
 
     print("Starting Bob   on http://localhost:5002 ...")
-    bob = subprocess.Popen([str(VENV_PYTHON), "src/bob/app.py"], cwd=ROOT)
+    bob = subprocess.Popen([str(VENV_PYTHON), "src/bob/app.py"], **popen_kwargs)
 
     print("Waiting for servers...")
     time.sleep(2)
@@ -92,18 +109,19 @@ def launch():
 
     def _shutdown(_sig=None, _frame=None):
         print("\nShutting down...")
-        alice.terminate()
-        bob.terminate()
-        alice.wait()
-        bob.wait()
+        _kill(alice)
+        _kill(bob)
         sys.exit(0)
 
     signal.signal(signal.SIGINT, _shutdown)
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, _shutdown)
 
-    alice.wait()
-    bob.wait()
+    # Keep alive; exit if either server dies unexpectedly.
+    while True:
+        time.sleep(1)
+        if alice.poll() is not None or bob.poll() is not None:
+            _shutdown()
 
 
 if __name__ == "__main__":
