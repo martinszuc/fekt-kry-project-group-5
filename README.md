@@ -1,268 +1,119 @@
-# MPC-KRY Skupina 5 — Post-Quantum Cryptography Demo
+# MPC-KRY Group 5 — Post-Quantum Cryptography Demo
 
-**Předmět:** MPC-KRY 2025/2026 — Kryptografie  
-**Skupina:** 5  
-**Členové:** Martin Szüč (231284), Zakhar Vasiukov (253203), Pavlo Balan (241004), Branislav Kadlec (241045)
-
----
-
-## Git — základní příkazy
-
-### Klonování repozitáře
-```bash
-git clone https://github.com/martinszuc/fekt-kry-project-group-5.git
-cd fekt-kry-project-group-5
-```
-
-### Vytvoření vlastní větve a přepnutí na ni
-```bash
-# Vždy pracuj na své větvi, NIKDY přímo na main
-git checkout -b feature/tvoje-jmeno-co-delas
-# Příklad:
-git checkout -b feature/martin-kem
-```
-
-### Přidání změn (staging) a commit
-```bash
-# Zobrazit co se změnilo
-git status
-
-# Přidat konkrétní soubor
-git add src/crypto/kem_pq.py
-
-# Nebo přidat vše najednou
-git add .
-
-# Vytvořit commit (napiš srozumitelnou zprávu)
-git commit -m "feat: implementace ML-KEM handshake"
-```
-
-### Pushnutí větve na GitHub
-```bash
-# První push nové větve
-git push -u origin feature/martin-kem
-
-# Další pushe na stejnou větev
-git push
-```
-
-### Aktualizace své větve z main (dělej pravidelně!)
-```bash
-git checkout main
-git pull
-git checkout feature/martin-kem
-git merge main
-```
-
-### Pull Request
-Po zpushnutí větve jdi na GitHub → **Compare & pull request** → přiřaď reviewera → merge do `main`.
+**Course:** MPC-KRY 2025/2026  
+**Members:** Martin Szüč (231284), Zakhar Vasiukov (253203), Pavlo Balan (241004), Branislav Kadlec (241045)
 
 ---
 
-## Struktura větví
+## Overview
 
-```
-main                  ← stabilní společná verze, merge sem přes PR
-├── feature/martin-kem
-├── feature/zakhar-encryption
-├── feature/pavlo-signatures
-└── feature/branislav-docs
-```
+Web app demonstrating post-quantum cryptography as a P2P secure channel between two parties — **Alice** (`:5001`) and **Bob** (`:5002`). Each party runs a Flask instance with a UI for performing handshakes and exchanging encrypted, signed messages.
 
----
-
-## O projektu
-
-Webová aplikace demonstrující postkvantovou kryptografii jako peer-to-peer komunikaci mezi dvěma účastníky (Alice a Bob). Implementováno v Pythonu s webovým rozhraním Flask.
-
-### Co aplikace dělá
-
-- Simuluje P2P komunikaci mezi dvěma instancemi na různých portech (`:5001`, `:5002`)
-- Navazuje zabezpečené spojení pomocí vlastního **handshake protokolu**
-- Podporuje výběr mezi klasickými a postkvantovými algoritmy
-- Šifruje a podepisuje zprávy/soubory přenášené mezi účastníky
-- Loguje bezpečnostní události s ochranou integrity logů
-
-### Kryptografické algoritmy
-
-| Kategorie | Klasický | Post-kvantový |
+| Category | Classical | Post-Quantum |
 |---|---|---|
-| Ustanovení klíče (KEM) | ECDH | ML-KEM-768 (Kyber) |
-| Digitální podpis | ECDSA (P-256) | ML-DSA-65 (Dilithium) |
-| Symetrické šifrování | AES-256-GCM | ChaCha20-Poly1305 |
+| Key exchange (KEM) | ECDH P-256 | ML-KEM-768 |
+| Digital signatures | ECDSA P-256 | ML-DSA-65 |
+| Symmetric encryption | AES-256-GCM | ChaCha20-Poly1305 |
 
 ---
 
-## Struktura repozitáře
+## Codebase
 
 ```
-fekt-kry-project-group-5/
-├── README.md
-├── codestyle.md            # krátký průvodce stylem kódu (EN)
-├── config.py               # sdílená konfigurace
-├── requirements.txt
-├── assignment-and-research.txt   # zadání + plán chunků
-├── src/
-│   ├── alice/              # Instance Alice (port 5001)
-│   │   ├── app.py
-│   │   └── templates/
-│   ├── bob/                # Instance Bob (port 5002)
-│   │   ├── app.py
-│   │   └── templates/
-│   ├── crypto/             # moduly k implementaci (Chunks 2–9)
-│   │   ├── kem_pq.py       # Chunk 2: ML-KEM-768
-│   │   ├── kem_classical.py # Chunk 3: ECDH
-│   │   ├── symmetric.py    # Chunks 4–5: AES-GCM, ChaCha20
-│   │   ├── signatures_pq.py    # Chunk 6: ML-DSA-65
-│   │   ├── signatures_classical.py # Chunk 7: ECDSA
-│   │   ├── handshake.py    # Chunk 8: handshake protokol
-│   │   └── transfer.py     # Chunk 9: šifrovaný přenos
-│   ├── static/             # sdílené CSS/JS
-│   └── utils/
-│       └── logger.py       # Chunk 10: logování (placeholder)
-├── tests/
-│   └── (test_*.py)
-└── docs/
-    ├── studie.pdf
-    └── dokumentace.pdf
-```
+src/
+├── alice/app.py              # Flask instance for Alice (port 5001)
+├── bob/app.py                # Flask instance for Bob (port 5002)
+├── crypto/
+│   ├── kem_pq.py             # ML-KEM-768
+│   ├── kem_classical.py      # ECDH P-256
+│   ├── signatures_pq.py      # ML-DSA-65
+│   ├── signatures_classical.py  # ECDSA P-256
+│   ├── symmetric.py          # AES-256-GCM, ChaCha20-Poly1305
+│   ├── handshake.py          # TLS-like handshake protocol
+│   └── transfer.py           # Encrypted + signed message transfer
+└── utils/
+    └── logger.py             # HMAC-chained security event log
 
-**Rozdělení práce:** viz `assignment-and-research.txt` — Project Plan s Chunks 1–14. Každý chunk lze implementovat samostatně.
+config.py                     # Shared ports, URLs, algorithm options
+tests/                        # pytest test suite
+```
 
 ---
 
-## Instalace a spuštění
+## Running
 
-### Krok 1 — Nainstaluj Python
-
-Zkontroluj jestli Python máš:
-```bash
-python --version
-# nebo
-python3 --version
-```
-
-Pokud ne, stáhni Python **3.11 nebo novější** z https://www.python.org/downloads/  
-⚠️ Při instalaci na Windows **zaškrtni "Add Python to PATH"**, jinak nic nebude fungovat.
-
----
-
-### Krok 2 — Naklonuj repozitář
+### Option 1 — Docker (recommended, no setup required)
 
 ```bash
-git clone https://github.com/martinszuc/fekt-kry-project-group-5.git
-cd fekt-kry-project-group-5
+docker compose up
 ```
+
+Then open http://localhost:5001 (Alice) and http://localhost:5002 (Bob).
 
 ---
 
-### Krok 3 — Vytvoř virtuální prostředí (venv)
+### Option 2 — start.py (Python 3.11+ required)
 
-Virtuální prostředí izoluje závislosti tohoto projektu od zbytku tvého systému. **Vždy používej venv.**
+Handles venv creation, dependency install, and opens both browser tabs automatically.
 
 ```bash
-# Vytvoření venv (udělej jen jednou)
+python start.py
+```
+
+> **First run only:** `liboqs-python` requires the native liboqs shared library to be installed before this will work. See the liboqs install steps below.
+
+---
+
+### Option 3 — Manual
+
+```bash
 python -m venv venv
-```
-
-Aktivace venv — **musíš udělat pokaždé když otevřeš nový terminál:**
-
-```bash
-# Windows (Command Prompt)
-venv\Scripts\activate.bat
-
-# Windows (PowerShell)
-venv\Scripts\Activate.ps1
-
-# macOS / Linux
-source venv/bin/activate
-```
-
-Když je venv aktivní, uvidíš `(venv)` na začátku řádku terminálu:
-```
-(venv) C:\Users\tvoje-jmeno\fekt-kry-project-group-5>
-```
-
-Deaktivace (když skončíš):
-```bash
-deactivate
-```
-
----
-
-### Krok 4 — Nainstaluj závislosti
-
-```bash
-# Ujisti se že máš aktivní venv (viz krok 3)
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-> ⚠️ `liboqs-python` vyžaduje aby byl v systému nainstalovaný **CMake**, **C kompilátor** a nativní **liboqs shared library**.
->
-> **macOS:**
-> ```bash
-> brew install cmake
-> git clone --depth 1 --branch 0.15.0 https://github.com/open-quantum-safe/liboqs.git /tmp/liboqs
-> cmake -S /tmp/liboqs -B /tmp/liboqs/build -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/opt/homebrew
-> cmake --build /tmp/liboqs/build --parallel 4
-> cmake --install /tmp/liboqs/build
-> ```
->
-> **Linux (Ubuntu/Debian):**
-> ```bash
-> sudo apt install cmake gcc
-> git clone --depth 1 --branch 0.15.0 https://github.com/open-quantum-safe/liboqs.git /tmp/liboqs
-> cmake -S /tmp/liboqs -B /tmp/liboqs/build -DBUILD_SHARED_LIBS=ON
-> cmake --build /tmp/liboqs/build --parallel 4
-> sudo cmake --install /tmp/liboqs/build
-> ```
->
-> **Windows (PowerShell jako administrátor):**
-> Nejdřív nainstaluj [CMake](https://cmake.org/download/) a [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (vyber workload „Desktop development with C++").
-> ```powershell
-> git clone --depth 1 --branch 0.15.0 https://github.com/open-quantum-safe/liboqs.git C:\liboqs
-> cmake -S C:\liboqs -B C:\liboqs\build -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=C:\liboqs\install
-> cmake --build C:\liboqs\build --config Release --parallel 4
-> cmake --install C:\liboqs\build --config Release
-> # přidej DLL na PATH (platí pro aktuální PowerShell session)
-> $env:PATH = "C:\liboqs\install\bin;" + $env:PATH
-> ```
-> Pro trvalé přidání do PATH: Nastavení systému → Proměnné prostředí → Path → přidej `C:\liboqs\install\bin`.
->
-> Po instalaci nativní knihovny funguje `pip install -r requirements.txt` standardně.
+Then in two separate terminals (both with venv active):
+
+```bash
+python src/alice/app.py   # http://localhost:5001
+python src/bob/app.py     # http://localhost:5002
+```
 
 ---
 
-### Krok 5 — Spusť aplikaci
+### liboqs native library (required for Options 2 and 3)
 
-Otevři **dva terminály** — jeden pro Alice, jeden pro Boba. V obou aktivuj venv (Krok 3).
-
-**Terminál 1 — Alice:**
+**macOS**
 ```bash
-python src/alice/app.py
+brew install cmake
+git clone --depth 1 --branch 0.15.0 https://github.com/open-quantum-safe/liboqs.git /tmp/liboqs
+cmake -S /tmp/liboqs -B /tmp/liboqs/build -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/opt/homebrew
+cmake --build /tmp/liboqs/build --parallel 4
+cmake --install /tmp/liboqs/build
 ```
 
-**Terminál 2 — Bob:**
+**Linux (Ubuntu/Debian)**
 ```bash
-python src/bob/app.py
+sudo apt install cmake build-essential
+git clone --depth 1 --branch 0.15.0 https://github.com/open-quantum-safe/liboqs.git /tmp/liboqs
+cmake -S /tmp/liboqs -B /tmp/liboqs/build -DBUILD_SHARED_LIBS=ON
+cmake --build /tmp/liboqs/build --parallel 4
+sudo cmake --install /tmp/liboqs/build
 ```
 
-Otevři v prohlížeči:
-- Alice → http://localhost:5001
-- Bob → http://localhost:5002
+**Windows** — install [CMake](https://cmake.org/download/) and [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (workload: "Desktop development with C++"), then:
+```powershell
+git clone --depth 1 --branch 0.15.0 https://github.com/open-quantum-safe/liboqs.git C:\liboqs
+cmake -S C:\liboqs -B C:\liboqs\build -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=C:\liboqs\install
+cmake --build C:\liboqs\build --config Release --parallel 4
+cmake --install C:\liboqs\build --config Release
+$env:PATH = "C:\liboqs\install\bin;" + $env:PATH
+```
 
 ---
 
-### Krok 6 — Spusť testy
+## Tests
 
 ```bash
 pytest tests/
 ```
-
----
-
-## Code style
-
-Krátký průvodce stylem kódu: **`codestyle.md`** (EN). Při implementaci chunku dodržuj pojmenování, komentáře a strukturu popsanou tam.
-
----
