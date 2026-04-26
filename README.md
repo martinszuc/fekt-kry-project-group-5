@@ -43,9 +43,16 @@ tests/                        # pytest test suite
 ## Running
 
 ### Option 1 — Docker (recommended, no setup required)
-
+To start both Alice and Bob simultaneously:
 ```bash
-docker compose up
+docker-compose up
+```
+
+To pinpoint a specific instance (for distributed networking or hybrid Host+Docker setups):
+```bash
+docker-compose up alice
+# OR
+docker-compose up bob
 ```
 
 Then open http://localhost:5001 (Alice) and http://localhost:5002 (Bob).
@@ -75,7 +82,9 @@ pip install -r requirements.txt
 Then in two separate terminals (both with venv active):
 
 ```bash
+# for Alice
 python src/alice/app.py   # http://localhost:5001
+# for Bob
 python src/bob/app.py     # http://localhost:5002
 ```
 
