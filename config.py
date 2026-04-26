@@ -1,12 +1,7 @@
 """Shared configuration for Alice and Bob instances."""
 
-import os
-
 ALICE_PORT = 5001
 BOB_PORT = 5002
-
-ALICE_URL = os.getenv("ALICE_URL", "http://localhost:5001")
-BOB_URL = os.getenv("BOB_URL", "http://localhost:5002")
 
 # algorithm options for UI dropdowns
 KEM_OPTIONS = [

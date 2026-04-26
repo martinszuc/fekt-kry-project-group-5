@@ -1,140 +1,218 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MPC-KRY — {{ role_label }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MPC-KRY — {{ role_label }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <h1>Post-Quantum Crypto Demo <span class="role-badge role-{{ role }}">{{ role_label }}</span></h1>
-  <p class="subtitle">Port {{ '5001' if role == 'alice' else '5002' }} — P2P secure communication</p>
 
-  <div class="grid">
+<h1>Post-Quantum Crypto Demo <span class="role-badge role-{{ role }}">{{ role_label }}</span></h1>
+
+<p class="subtitle" style="margin-bottom: 16px; font-weight: 500;">
+    <strong>IP {{ local_ip }}</strong> | <strong>Port {{ my_port }}</strong>
+    <span id="conn-status-badge"
+          style="margin: 0 8px; font-size: 0.8rem; padding: 4px 12px; border-radius: 12px; background: #ffebee; color: #c62828;">Disconnected</span>
+    <strong id="peer-ip-name" style="display: none;">{{ 'Bob' if role == 'alice' else 'Alice' }}'s IP</strong>
+    <span id="peer-ip-display"
+          style="margin-left: 10px; font-family: monospace; font-size: 0.9rem; font-weight: 600; color: #2e7d32;"></span>
+</p>
+
+<div class="grid">
     <div class="panel">
-      <h2>Algorithm selection</h2>
-      <div class="form-group">
-        <label>KEM (key exchange)</label>
-        <select id="kem">
-          {% for val, label in kem_options %}
-          <option value="{{ val }}">{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Signature</label>
-        <select id="sig">
-          {% for val, label in sig_options %}
-          <option value="{{ val }}">{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Symmetric cipher</label>
-        <select id="symmetric">
-          {% for val, label in sym_options %}
-          <option value="{{ val }}">{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <button class="btn btn-primary" id="btn-handshake">Initiate handshake</button>
+        <h2>Connection & Algorithms</h2>
+        <div class="form-group">
+            <label>KEM (key exchange)</label>
+            <select id="kem">
+                {% for val, label in kem_options %}
+                <option value="{{ val }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Signature</label>
+            <select id="sig">
+                {% for val, label in sig_options %}
+                <option value="{{ val }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Symmetric cipher</label>
+            <select id="symmetric">
+                {% for val, label in sym_options %}
+                <option value="{{ val }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Connection Mode</label>
+            <select id="conn-mode">
+                {% if IS_DOCKER %}
+                <option value="local">Container Bridge Mode (Gateway)</option>
+                {% else %}
+                <option value="local">Host Loopback Mode (127.0.0.1)</option>
+                {% endif %}
+                <option value="public">LAN / Public Mode (Manual IP)</option>
+            </select>
+        </div>
+        <div id="peer-url-container" style="display: none;">
+            <div class="form-group">
+                <label>{{ 'Bob' if role == 'alice' else 'Alice' }}'s IP Address</label>
+                <div style="display: flex; align-items: center;">
+                    <input type="text" id="peer-ip" placeholder="e.g. 192.168.1.50" style="flex: 1;">
+                    <span style="margin-left: 8px; font-family: monospace; font-weight: bold; font-size: 0.85rem;">:{{ peer_port }}</span>
+                </div>
+            </div>
+        </div>
+        <button class="btn btn-primary" id="btn-handshake">Initiate handshake</button>
     </div>
 
     <div class="panel">
-      <h2>Send message</h2>
-      <div class="form-group">
-        <label>Message</label>
-        <textarea id="message" placeholder="Type a message..."></textarea>
-      </div>
-      <button class="btn btn-primary" id="btn-send">Send message</button>
+        <h2>Send message</h2>
+        <textarea id="message" placeholder="Type a message..."
+                  style="width: 100%; height: 80px; margin-bottom: 10px;"></textarea>
+        <button class="btn btn-primary" id="btn-send">Send message</button>
     </div>
 
     <div class="panel messages-panel">
-      <h2>Received messages</h2>
-      <div id="messages">
-        <p class="muted">No messages yet.</p>
-      </div>
-      <button class="btn btn-secondary" id="btn-refresh-messages" style="margin-top: 0.5rem;">Refresh</button>
+        <h2>Messages</h2>
+        <div id="messages"><p class="muted">No messages yet.</p></div>
+        <button class="btn btn-secondary" id="btn-refresh-messages" style="margin-top: 0.5rem;">Refresh</button>
     </div>
 
     <div class="panel">
-      <h2>Security log</h2>
-      <div class="log-viewer" id="logs"></div>
-      <button class="btn btn-secondary" id="btn-refresh-logs" style="margin-top: 0.5rem;">Refresh</button>
+        <h2>Security log</h2>
+        <div class="log-viewer" id="logs"></div>
+        <button class="btn btn-secondary" id="btn-refresh-logs" style="margin-top: 0.5rem;">Refresh</button>
     </div>
-  </div>
+</div>
 
-  <script>
+<script>
     const role = "{{ role }}";
+    const peerName = role === "alice" ? "Bob" : "Alice";
 
+    // Generic API helper
     async function api(path, options = {}) {
-      const res = await fetch(path, {
-        headers: { "Content-Type": "application/json", ...options.headers },
-        ...options,
-      });
-      return res.json();
+        const res = await fetch(path, {
+            headers: { "Content-Type": "application/json", ...options.headers },
+            ...options,
+        });
+        return res.json();
     }
 
     async function refreshMessages() {
-      const data = await api("/api/receive");
-      const el = document.getElementById("messages");
-      if (!data.messages || !data.messages.length) {
-        el.innerHTML = `<p class="muted">No messages yet.</p>`;
-        return;
-      }
-      el.innerHTML = data.messages.map(m => {
-        const cls = m.from === "me" ? "from-me" : "from-peer";
-        const label = m.from === "me" ? "Me" : "Peer";
-        return `<div class="message ${cls}"><strong>${label}:</strong> ${m.text}</div>`;
-      }).join("");
+        const data = await api("/api/receive");
+        const el = document.getElementById("messages");
+        if (!data.messages?.length) {
+            el.innerHTML = `<p class="muted">No messages yet.</p>`;
+            return;
+        }
+
+        const isAlice = role === 'alice';
+
+        const myClass = isAlice ? "from-peer" : "from-me";
+        const peerClass = isAlice ? "from-me" : "from-peer";
+
+        el.innerHTML = data.messages.map(m => `
+            <div class="message ${m.from === 'me' ? myClass : peerClass}">
+                <strong>${m.from === 'me' ? 'Me' : peerName}:</strong> ${m.text}
+            </div>`).join("");
     }
-    document.getElementById("btn-refresh-messages").addEventListener("click", refreshMessages);
 
-    document.getElementById("btn-handshake").addEventListener("click", async () => {
-      const kem = document.getElementById("kem").value;
-      const sig = document.getElementById("sig").value;
-      const symmetric = document.getElementById("symmetric").value;
-      const result = await api("/api/handshake", {
-        method: "POST",
-        body: JSON.stringify({ kem, sig, symmetric }),
-      });
-      alert(result.ok ? result.message : result.error || "Error");
-      refreshLogs();
-      refreshMessages();
-    });
+    async function updateStatus() {
+        try {
+            const data = await api("/api/status");
+            const badge = document.getElementById("conn-status-badge");
+            const ipDisplay = document.getElementById("peer-ip-display");
+            const ipName = document.getElementById("peer-ip-name");
 
-    document.getElementById("btn-send").addEventListener("click", async () => {
-      const message = document.getElementById("message").value;
-      const result = await api("/api/send", {
-        method: "POST",
-        body: JSON.stringify({ message }),
-      });
-      if (result.ok) {
-        alert(result.message || "Sent");
-      } else {
-        alert(result.error || "Error");
-      }
-      refreshLogs();
-      refreshMessages();
-    });
+            const isConn = data.session_established;
+            badge.innerText = isConn ? "Connected" : "Disconnected";
+            badge.style.background = isConn ? "#e8f5e9" : "#ffebee";
+            badge.style.color = isConn ? "#2e7d32" : "#c62828";
+
+            ipDisplay.innerText = (isConn && data.peer_url) ? data.peer_url.replace("http://", "") : "";
+            ipName.style.display = isConn ? "unset" : "none";
+        } catch (e) { console.error("Status error", e); }
+    }
+
+    function updateUiVisibility() {
+        const isPublic = document.getElementById("conn-mode").value === "public";
+        document.getElementById("peer-url-container").style.display = isPublic ? "block" : "none";
+    }
+
+    // --- Listeners ---
+    document.getElementById("conn-mode").onchange = updateUiVisibility;
+
+    document.getElementById("btn-handshake").onclick = async () => {
+        const mode = document.getElementById("conn-mode").value;
+        const targetPort = "{{ peer_port }}";
+        const manualIp = document.getElementById("peer-ip").value.trim();
+
+        let autoIp = "127.0.0.1";
+        {% if IS_DOCKER %}
+            autoIp = "{{ peer_internal_ip }}";
+        {% endif %}
+
+        const finalPeerUrl = `http://${mode === 'local' ? autoIp : manualIp}:${targetPort}`;
+
+        const result = await api("/api/handshake", {
+            method: "POST",
+            body: JSON.stringify({
+                kem: document.getElementById("kem").value,
+                sig: document.getElementById("sig").value,
+                symmetric: document.getElementById("symmetric").value,
+                peer_url: finalPeerUrl
+            }),
+        });
+
+        if (result.ok) {
+            updateStatus();
+            alert("Handshake Complete!");
+        } else alert(result.error || "Error");
+
+        refreshLogs();
+        refreshMessages();
+    };
+
+    document.getElementById("btn-send").onclick = async () => {
+        const msgInput = document.getElementById("message");
+        const res = await api("/api/send", {
+            method: "POST",
+            body: JSON.stringify({ message: msgInput.value }),
+        });
+        if (res.ok) msgInput.value = "";
+        refreshMessages();
+    };
 
     async function refreshLogs() {
-      const data = await api("/api/logs");
-      const el = document.getElementById("logs");
-      const lvlClass = { INFO: "log-info", WARN: "log-warn", ERROR: "log-error" };
-      el.innerHTML = data.entries.length
-        ? data.entries.map(e => {
-            const cls = lvlClass[e.level] || "log-info";
-            const detail = e.detail ? `<span class="log-detail">${e.detail}</span>` : "";
-            return `<div class="log-entry ${cls}"><span class="log-ts">${e.timestamp}</span> <span class="log-lvl">${e.level}</span> <span class="log-event">${e.event}</span>${detail}</div>`;
-          }).join("")
-        : "<div class='log-entry'>No entries</div>";
+        const data = await api("/api/logs");
+        const el = document.getElementById("logs");
+        const lvlClass = { INFO: "log-info", WARN: "log-warn", ERROR: "log-error" };
+        el.innerHTML = data.entries.map(e => `
+            <div class="log-entry ${lvlClass[e.level] || "log-info"}">
+                <span class="log-ts">${e.timestamp}</span> <span class="log-lvl">${e.level}</span>
+                <span class="log-event">${e.event}</span> ${e.detail ? `<span class="log-detail">${e.detail}</span>` : ""}
+            </div>`).join("");
     }
 
-    document.getElementById("btn-refresh-logs").addEventListener("click", refreshLogs);
+    // Initial load and consolidated polling
+    window.onload = () => {
+        updateUiVisibility();
+        updateStatus();
+        refreshLogs();
+        refreshMessages();
 
-    refreshLogs();
-    refreshMessages();
-  </script>
+        setInterval(() => {
+            updateStatus();
+            refreshMessages();
+        }, 5000);
+    };
+
+    document.getElementById("btn-refresh-messages").onclick = refreshMessages;
+    document.getElementById("btn-refresh-logs").onclick = refreshLogs;
+</script>
 </body>
 </html>

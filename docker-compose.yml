@@ -2,15 +2,27 @@ services:
   alice:
     build: .
     ports:
-      - "5001:5001"
+      - "127.0.0.1:5001:5001"
     environment:
-      - BOB_URL=http://bob:5002
+      - DOCKER_CONTAINER=1
+      - PYTHONUNBUFFERED=1
+      - ROLE=alice
     command: python src/alice/app.py
+    networks:
+      - crypto-net
 
   bob:
     build: .
     ports:
-      - "5002:5002"
+      - "127.0.0.1:5002:5002"
     environment:
-      - ALICE_URL=http://alice:5001
+      - DOCKER_CONTAINER=1
+      - PYTHONUNBUFFERED=1
+      - ROLE=bob
     command: python src/bob/app.py
+    networks:
+      - crypto-net
+
+networks:
+  crypto-net:
+    driver: bridge
