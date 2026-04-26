@@ -7,9 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-
 <h1>Post-Quantum Crypto Demo <span class="role-badge role-{{ role }}">{{ role_label }}</span></h1>
-
 <p class="subtitle" style="margin-bottom: 16px; font-weight: 500;">
     <strong>IP {{ local_ip }}</strong> | <strong>Port {{ my_port }}</strong>
     <span id="conn-status-badge"
@@ -18,82 +16,111 @@
     <span id="peer-ip-display"
           style="margin-left: 10px; font-family: monospace; font-size: 0.9rem; font-weight: 600; color: #2e7d32;"></span>
 </p>
-
 <div class="grid">
     <div class="panel">
-        <h2>Connection & Algorithms</h2>
-        <div class="form-group">
-            <label>KEM (key exchange)</label>
-            <select id="kem">
-                {% for val, label in kem_options %}
-                <option value="{{ val }}">{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Signature</label>
-            <select id="sig">
-                {% for val, label in sig_options %}
-                <option value="{{ val }}">{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Symmetric cipher</label>
-            <select id="symmetric">
-                {% for val, label in sym_options %}
-                <option value="{{ val }}">{{ label }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Connection Mode</label>
-            <select id="conn-mode">
-                {% if IS_DOCKER %}
-                <option value="local">Container Bridge Mode (Gateway)</option>
-                {% else %}
-                <option value="local">Host Loopback Mode (127.0.0.1)</option>
-                {% endif %}
-                <option value="public">LAN / Public Mode (Manual IP)</option>
-            </select>
-        </div>
-        <div id="peer-url-container" style="display: none;">
-            <div class="form-group">
-                <label>{{ 'Bob' if role == 'alice' else 'Alice' }}'s IP Address</label>
-                <div style="display: flex; align-items: center;">
-                    <input type="text" id="peer-ip" placeholder="e.g. 192.168.1.50" style="flex: 1;">
-                    <span style="margin-left: 8px; font-family: monospace; font-weight: bold; font-size: 0.85rem;">:{{ peer_port }}</span>
+        <h2>Connection & Security</h2>
+        <div id="active-session-info"
+             style="display: none;">
+            <div class="session-info" style="">
+                <div>
+                    <strong>Connected to:</strong>
+                    <strong id="session-peer-name"
+                            style="background: {{ '#1F6FEB' if role == 'alice' else '#238636' }};">
+                    </strong>
+                </div>
+                <div>
+                    <strong>KEM (key exchange):</strong>
+                    <span id="session-kem"></span>
+                </div>
+                <div>
+                    <strong>Signature:</strong>
+                    <span id="session-sig"></span>
+                </div>
+                <div>
+                    <strong>Symmetric cipher:</strong>
+                    <span id="session-sym"></span>
+                </div>
+                <div>
+                    <strong>IP:</strong>
+                    <span id="session-ip"></span>
+                </div>
+                <div>
+                    <strong>Port:</strong>
+                    <span id="session-port"></span>
                 </div>
             </div>
+            <button class="btn" id="btn-disconnect"
+                    style="background: #c62828; color: white;">
+                Terminate Session
+            </button>
         </div>
-        <button class="btn btn-primary" id="btn-handshake">Initiate handshake</button>
+        <div id="handshake-form-container">
+            <div class="form-group">
+                <label>KEM (key exchange)</label>
+                <select id="kem">
+                    {% for val, label in kem_options %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Signature</label>
+                <select id="sig">
+                    {% for val, label in sig_options %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Symmetric cipher</label>
+                <select id="symmetric">
+                    {% for val, label in sym_options %}
+                    <option value="{{ val }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Connection Mode</label>
+                <select id="conn-mode">
+                    <option value="local">Local / Docker Mode</option>
+                    <option value="public">Manual IP Mode</option>
+                </select>
+            </div>
+            <div id="peer-url-container" style="display: none;">
+                <div class="form-group">
+                    <label>{{ 'Bob' if role == 'alice' else 'Alice' }}'s IP</label>
+                    <div style="display: flex; align-items: center;">
+                        <input type="text" id="peer-ip" placeholder="192.168.x.x" style="flex: 1;">
+                        <span style="margin-left: 8px; font-family: monospace;">:{{ peer_port }}</span>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-primary" id="btn-handshake">Initiate Handshake</button>
+        </div>
     </div>
-
     <div class="panel">
         <h2>Send message</h2>
         <textarea id="message" placeholder="Type a message..."
                   style="width: 100%; height: 80px; margin-bottom: 10px;"></textarea>
         <button class="btn btn-primary" id="btn-send">Send message</button>
     </div>
-
     <div class="panel messages-panel">
         <h2>Messages</h2>
-        <div id="messages"><p class="muted">No messages yet.</p></div>
+        <div id="messages">
+            <p class="muted">No messages yet.</p>
+        </div>
         <button class="btn btn-secondary" id="btn-refresh-messages" style="margin-top: 0.5rem;">Refresh</button>
     </div>
-
     <div class="panel">
         <h2>Security log</h2>
         <div class="log-viewer" id="logs"></div>
         <button class="btn btn-secondary" id="btn-refresh-logs" style="margin-top: 0.5rem;">Refresh</button>
     </div>
 </div>
-
 <script>
     const role = "{{ role }}";
     const peerName = role === "alice" ? "Bob" : "Alice";
 
-    // Generic API helper
     async function api(path, options = {}) {
         const res = await fetch(path, {
             headers: { "Content-Type": "application/json", ...options.headers },
@@ -121,21 +148,41 @@
             </div>`).join("");
     }
 
+    const KEM_OPTIONS = Object.fromEntries({{ kem_options | tojson }});
+    const SIG_OPTIONS = Object.fromEntries({{ sig_options | tojson }});
+    const SYM_OPTIONS = Object.fromEntries({{ sym_options | tojson }});
+    console.log(SYM_OPTIONS)
+
     async function updateStatus() {
         try {
             const data = await api("/api/status");
-            const badge = document.getElementById("conn-status-badge");
-            const ipDisplay = document.getElementById("peer-ip-display");
-            const ipName = document.getElementById("peer-ip-name");
+        const isConn = data.session_established;
 
-            const isConn = data.session_established;
+        const infoDiv = document.getElementById("active-session-info");
+        const formDiv = document.getElementById("handshake-form-container");
+        const badge = document.getElementById("conn-status-badge");
+
             badge.innerText = isConn ? "Connected" : "Disconnected";
-            badge.style.background = isConn ? "#e8f5e9" : "#ffebee";
-            badge.style.color = isConn ? "#2e7d32" : "#c62828";
+        badge.style.background = isConn ? "#e8f5e9" : "#ffebee";
+        badge.style.color = isConn ? "#2e7d32" : "#c62828";
 
-            ipDisplay.innerText = (isConn && data.peer_url) ? data.peer_url.replace("http://", "") : "";
-            ipName.style.display = isConn ? "unset" : "none";
-        } catch (e) { console.error("Status error", e); }
+        console.log("update");
+        if (isConn) {
+            const parsedUrl = new URL(data.peer_url);
+
+            infoDiv.style.display = "block";
+            formDiv.style.display = "none";
+            document.getElementById("session-peer-name").innerText = peerName;
+            document.getElementById("session-ip").innerText = parsedUrl.hostname;
+            document.getElementById("session-port").innerText = parsedUrl.port;
+            document.getElementById("session-kem").innerText = KEM_OPTIONS[data.algorithms.kem];
+            document.getElementById("session-sig").innerText = SIG_OPTIONS[data.algorithms.sig];
+            document.getElementById("session-sym").innerText = SYM_OPTIONS[data.algorithms.symmetric];
+        } else {
+            infoDiv.style.display = "none";
+            formDiv.style.display = "block";
+        }
+    } catch (e) { console.error("Status error", e); }
     }
 
     function updateUiVisibility() {
@@ -143,7 +190,6 @@
         document.getElementById("peer-url-container").style.display = isPublic ? "block" : "none";
     }
 
-    // --- Listeners ---
     document.getElementById("conn-mode").onchange = updateUiVisibility;
 
     document.getElementById("btn-handshake").onclick = async () => {
@@ -177,6 +223,17 @@
         refreshMessages();
     };
 
+    document.getElementById("btn-disconnect").onclick = async () => {
+    if(!confirm("Securely terminate this session?")) return;
+    const res = await api("/api/disconnect", { method: "POST", body:JSON.stringify({
+    phase: "manual",
+    }) }, );
+    if (res.ok) {
+        updateStatus();
+        refreshLogs();
+    }
+    };
+
     document.getElementById("btn-send").onclick = async () => {
         const msgInput = document.getElementById("message");
         const res = await api("/api/send", {
@@ -198,7 +255,6 @@
             </div>`).join("");
     }
 
-    // Initial load and consolidated polling
     window.onload = () => {
         updateUiVisibility();
         updateStatus();

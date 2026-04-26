@@ -77,6 +77,37 @@ h1 {
   margin-bottom: 0.25rem;
 }
 
+#active-session-info {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+#active-session-info .session-info div {
+  margin-bottom: 13px;
+}
+
+#active-session-info .session-info div strong {
+  font-size: 0.85rem;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 0;
+}
+
+#active-session-info .session-info div span {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: var(--text);
+}
+
+#active-session-info .session-info div #session-peer-name {
+    font-size: 0.85rem;
+    color: white;
+    padding: 5px;
+    border-radius: 4px;
+    margin-top: 5px;
+    display: inline-block;
+}
+
+
 select, textarea, input[type="text"] {
   width: 100%;
   padding: 0.5rem;

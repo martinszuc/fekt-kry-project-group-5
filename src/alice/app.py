@@ -66,7 +66,7 @@ WHITELIST = get_authorized_ips()
 
 @app.before_request
 def limit_remote_addr():
-    public_endpoints = ['index', 'status', 'handshake', 'incoming', 'static']
+    public_endpoints = ['index', 'status', 'handshake', 'incoming', 'static', 'disconnect']
     if request.endpoint in public_endpoints: return
 
     clean_ip = (request.remote_addr or "").replace('::ffff:', '')
@@ -171,6 +171,51 @@ def handshake():
     except Exception as e:
         reset_session()
         return jsonify({"ok": False, "error": str(e)}), 400
+
+
+@app.route("/api/disconnect", methods=["POST"])
+def disconnect():
+    data = request.get_json() or {}
+    phase = data.get("phase")
+
+    if phase == "teardown":
+        if not SESSION["established"]:
+            return jsonify({"ok": True})
+        try:
+            sig_payload = dict(data)
+            sig_payload.pop("phase", None)
+
+            receive_message(
+                SESSION["session_key"],
+                SESSION["peer_sig_pub"],
+                sig_payload,
+                SESSION["sig"]
+            )
+            reset_session()
+            log_event("session_terminated", result="OK", detail="Peer initiated disconnect")
+            return jsonify({"ok": True})
+        except Exception as e:
+            log_event("remote_disconnect_blocked", result="FAIL", detail=f"Auth error: {str(e)}")
+            return jsonify({"ok": False, "error": "Invalid teardown signature"}), 401
+
+    target = SESSION.get("peer_url")
+    if SESSION["established"] and target:
+        try:
+            payload = send_message(
+                SESSION["session_key"],
+                SESSION["my_sig_priv"],
+                "BYE",
+                SESSION["symmetric"],
+                SESSION["sig"]
+            )
+            payload["phase"] = "teardown"
+            _post_json(target, "/api/disconnect", payload)
+        except Exception as e:
+            log_event("disconnect_notice_failed", result="WARN", detail=str(e))
+
+    reset_session()
+    log_event("session_terminated", result="OK", detail="Local user initiated disconnect")
+    return jsonify({"ok": True})
 
 
 @app.route("/api/send", methods=["POST"])
