@@ -8,8 +8,10 @@ Usage:
 Outputs:
     - Comparison table printed to stdout
     - tests/benchmark_results.json  (raw numbers for documentation)
-    - tests/benchmark_chart_kem.png
-    - tests/benchmark_chart_sig.png
+    - tests/benchmark_chart_kem_timing.png
+    - tests/benchmark_chart_kem_sizes.png
+    - tests/benchmark_chart_sig_timing.png
+    - tests/benchmark_chart_sig_sizes.png
 """
 
 import json
@@ -21,6 +23,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from src.crypto import kem_classical, kem_pq
 from src.crypto import signatures_classical, signatures_pq
+from src.crypto.handshake import alice_client_hello, bob_server_hello, alice_finish
+from src.crypto.transfer import send_message
 
 N = 50
 SAMPLE_MSG = b"benchmark message for signing"
@@ -298,6 +302,102 @@ def _save_charts(ecdh, mlkem, ecdsa, mldsa, out_dir):
     print(f"[benchmark] saved {path}")
 
 
+# ── Transmission overhead ─────────────────────────────────────────────────────
+
+MSG_OVERHEAD = b"benchmark overhead test message"   # 31 bytes
+
+
+def _handshake_bytes(kem_algo: str, sig_algo: str) -> dict:
+    """Return serialized JSON byte counts for each handshake phase."""
+    a_state, hello = alice_client_hello(kem_algo=kem_algo, sig_algo=sig_algo, symmetric_algo="aes_gcm")
+    client_hello_bytes = len(json.dumps(hello).encode("utf-8"))
+
+    b_state, server_hello = bob_server_hello(hello)
+    server_hello_bytes = len(json.dumps(server_hello).encode("utf-8"))
+
+    _, _, _, _, finish = alice_finish(a_state, server_hello)
+    finish_bytes = len(json.dumps(finish).encode("utf-8"))
+
+    total = client_hello_bytes + server_hello_bytes + finish_bytes
+    return {
+        "client_hello": client_hello_bytes,
+        "server_hello": server_hello_bytes,
+        "finish": finish_bytes,
+        "total": total,
+    }
+
+
+def bench_handshake_overhead() -> dict:
+    classical = _handshake_bytes("ecdh", "ecdsa")
+    pq        = _handshake_bytes("mlkem", "mldsa")
+    ratio     = round(pq["total"] / classical["total"], 2)
+    return {"classical": classical, "pq": pq, "ratio": ratio}
+
+
+def _message_bytes(sig_algo: str, sym_algo: str) -> dict:
+    session_key = os.urandom(32)
+    if sig_algo == "mldsa":
+        sig_pub, sig_priv = signatures_pq.generate_keypair()
+    else:
+        sig_pub, sig_priv = signatures_classical.generate_keypair()
+
+    payload = send_message(session_key, sig_priv, MSG_OVERHEAD, sym_algo, sig_algo)
+    payload_bytes = len(json.dumps(payload).encode("utf-8"))
+    pt_bytes = len(MSG_OVERHEAD)
+    return {
+        "payload_bytes": payload_bytes,
+        "overhead_bytes": payload_bytes - pt_bytes,
+        "overhead_ratio": round(payload_bytes / pt_bytes, 1),
+    }
+
+
+def bench_message_overhead() -> dict:
+    return {
+        "plaintext_bytes": len(MSG_OVERHEAD),
+        "ecdsa_aesgcm":   _message_bytes("ecdsa", "aes_gcm"),
+        "ecdsa_chacha20": _message_bytes("ecdsa", "chacha20"),
+        "mldsa_aesgcm":   _message_bytes("mldsa", "aes_gcm"),
+        "mldsa_chacha20": _message_bytes("mldsa", "chacha20"),
+    }
+
+
+def print_overhead_table(handshake: dict, message: dict):
+    c = handshake["classical"]
+    p = handshake["pq"]
+    ratio = handshake["ratio"]
+    pt = message["plaintext_bytes"]
+
+    print()
+    print("=" * 66)
+    print("  TRANSMISSION OVERHEAD  (přenosová réžie)")
+    print("=" * 66)
+    print(f"  {'HANDSHAKE OVERHEAD'}")
+    print(f"  {'Metric':<32} {'Classical (ECDH+ECDSA)':>20} {'PQ (ML-KEM+ML-DSA)':>16}")
+    print("  " + "-" * 62)
+    rows = [
+        ("ClientHello (bytes)",  c["client_hello"],  p["client_hello"]),
+        ("ServerHello (bytes)",  c["server_hello"],  p["server_hello"]),
+        ("Finish (bytes)",       c["finish"],        p["finish"]),
+        ("Total handshake (bytes)", c["total"],       p["total"]),
+    ]
+    for label, cv, pv in rows:
+        print(f"  {label:<32} {cv:>20} {pv:>16}")
+    print(f"  {'Overhead ratio':<32} {'1.0x':>20} {ratio:>15.1f}x")
+    print()
+    print(f"  PER-MESSAGE OVERHEAD  (plaintext = {pt} bytes)")
+    print(f"  {'Algo combo':<26} {'Payload (bytes)':>15} {'Overhead (bytes)':>16} {'Ratio':>7}")
+    print("  " + "-" * 62)
+    combos = [
+        ("ECDSA + AES-GCM",    message["ecdsa_aesgcm"]),
+        ("ECDSA + ChaCha20",   message["ecdsa_chacha20"]),
+        ("ML-DSA + AES-GCM",   message["mldsa_aesgcm"]),
+        ("ML-DSA + ChaCha20",  message["mldsa_chacha20"]),
+    ]
+    for label, m in combos:
+        print(f"  {label:<26} {m['payload_bytes']:>15} {m['overhead_bytes']:>16} {m['overhead_ratio']:>6.1f}x")
+    print("=" * 66)
+
+
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -319,12 +419,25 @@ def main():
     mldsa = bench_mldsa()
     print("done")
 
+    print("  [5/5] Transmission overhead ...", end=" ", flush=True)
+    handshake_overhead = bench_handshake_overhead()
+    message_overhead   = bench_message_overhead()
+    print("done")
+
     print_kem_table(ecdh, mlkem)
     print_sig_table(ecdsa, mldsa)
+    print_overhead_table(handshake_overhead, message_overhead)
 
     out_dir = os.path.dirname(__file__)
-    results = {"n_iterations": N, "kem": {"ecdh": ecdh, "mlkem": mlkem},
-               "signatures": {"ecdsa": ecdsa, "mldsa": mldsa}}
+    results = {
+        "n_iterations": N,
+        "kem":        {"ecdh": ecdh,   "mlkem": mlkem},
+        "signatures": {"ecdsa": ecdsa, "mldsa": mldsa},
+        "overhead": {
+            "handshake":   handshake_overhead,
+            "per_message": message_overhead,
+        },
+    }
     json_path = os.path.join(out_dir, "benchmark_results.json")
     with open(json_path, "w") as f:
         json.dump(results, f, indent=2)

@@ -5,8 +5,8 @@
       "name": "ECDH P-256",
       "quantum_resistant": false,
       "nist_level": 3,
-      "keygen_ms": 0.0978775000112364,
-      "exchange_ms": 0.09032499998284038,
+      "keygen_ms": 0.0768016800066107,
+      "exchange_ms": 0.07808581998688169,
       "decaps_ms": null,
       "pub_key_bytes": 91,
       "priv_key_bytes": 138,
@@ -17,9 +17,9 @@
       "name": "ML-KEM-768",
       "quantum_resistant": true,
       "nist_level": 3,
-      "keygen_ms": 0.15528081999946153,
-      "exchange_ms": 0.21136084000318078,
-      "decaps_ms": 0.24903918001655256,
+      "keygen_ms": 0.13226999999460531,
+      "exchange_ms": 0.20004168000014033,
+      "decaps_ms": 0.24204249999456806,
       "pub_key_bytes": 1184,
       "priv_key_bytes": 2400,
       "ciphertext_bytes": 1088,
@@ -31,9 +31,9 @@
       "name": "ECDSA P-256",
       "quantum_resistant": false,
       "nist_level": 3,
-      "keygen_ms": 0.030335839983308688,
-      "sign_ms": 0.05956916000286583,
-      "verify_ms": 0.05803250001918059,
+      "keygen_ms": 0.02751250001892913,
+      "sign_ms": 0.05216166002355749,
+      "verify_ms": 0.0626683399968897,
       "pub_key_bytes": 91,
       "priv_key_bytes": 138,
       "sig_bytes": 72
@@ -42,12 +42,52 @@
       "name": "ML-DSA-65",
       "quantum_resistant": true,
       "nist_level": 3,
-      "keygen_ms": 4.48373168001126,
-      "sign_ms": 10.429874180008483,
-      "verify_ms": 5.068052499991609,
+      "keygen_ms": 4.488034999994852,
+      "sign_ms": 27.328105000015057,
+      "verify_ms": 4.855013339983998,
       "pub_key_bytes": 1952,
       "priv_key_bytes": 4032,
       "sig_bytes": 3309
+    }
+  },
+  "overhead": {
+    "handshake": {
+      "classical": {
+        "client_hello": 233,
+        "server_hello": 632,
+        "finish": 172,
+        "total": 1037
+      },
+      "pq": {
+        "client_hello": 1690,
+        "server_hello": 10213,
+        "finish": 2652,
+        "total": 14555
+      },
+      "ratio": 14.04
+    },
+    "per_message": {
+      "plaintext_bytes": 31,
+      "ecdsa_aesgcm": {
+        "payload_bytes": 271,
+        "overhead_bytes": 240,
+        "overhead_ratio": 8.7
+      },
+      "ecdsa_chacha20": {
+        "payload_bytes": 257,
+        "overhead_bytes": 226,
+        "overhead_ratio": 8.3
+      },
+      "mldsa_aesgcm": {
+        "payload_bytes": 4587,
+        "overhead_bytes": 4556,
+        "overhead_ratio": 148.0
+      },
+      "mldsa_chacha20": {
+        "payload_bytes": 4573,
+        "overhead_bytes": 4542,
+        "overhead_ratio": 147.5
+      }
     }
   }
 }
