@@ -1,0 +1,53 @@
+{
+  "n_iterations": 50,
+  "kem": {
+    "ecdh": {
+      "name": "ECDH P-256",
+      "quantum_resistant": false,
+      "nist_level": 3,
+      "keygen_ms": 0.0978775000112364,
+      "exchange_ms": 0.09032499998284038,
+      "decaps_ms": null,
+      "pub_key_bytes": 91,
+      "priv_key_bytes": 138,
+      "ciphertext_bytes": null,
+      "secret_bytes": 32
+    },
+    "mlkem": {
+      "name": "ML-KEM-768",
+      "quantum_resistant": true,
+      "nist_level": 3,
+      "keygen_ms": 0.15528081999946153,
+      "exchange_ms": 0.21136084000318078,
+      "decaps_ms": 0.24903918001655256,
+      "pub_key_bytes": 1184,
+      "priv_key_bytes": 2400,
+      "ciphertext_bytes": 1088,
+      "secret_bytes": 32
+    }
+  },
+  "signatures": {
+    "ecdsa": {
+      "name": "ECDSA P-256",
+      "quantum_resistant": false,
+      "nist_level": 3,
+      "keygen_ms": 0.030335839983308688,
+      "sign_ms": 0.05956916000286583,
+      "verify_ms": 0.05803250001918059,
+      "pub_key_bytes": 91,
+      "priv_key_bytes": 138,
+      "sig_bytes": 72
+    },
+    "mldsa": {
+      "name": "ML-DSA-65",
+      "quantum_resistant": true,
+      "nist_level": 3,
+      "keygen_ms": 4.48373168001126,
+      "sign_ms": 10.429874180008483,
+      "verify_ms": 5.068052499991609,
+      "pub_key_bytes": 1952,
+      "priv_key_bytes": 4032,
+      "sig_bytes": 3309
+    }
+  }
+}
